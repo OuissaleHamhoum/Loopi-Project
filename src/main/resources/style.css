@@ -1,0 +1,635 @@
+/* style.css - Fichier de styles pour LOOPI (version compatible JavaFX) */
+
+.root {
+    -fx-font-family: "Arial", sans-serif;
+}
+
+/* =========================================== */
+/* STYLES GÉNÉRAUX */
+/* =========================================== */
+
+/* Styles pour les boutons */
+.button {
+    -fx-cursor: hand;
+    -fx-font-weight: bold;
+}
+
+.button-primary {
+    -fx-background-color: #4CAF50;
+    -fx-text-fill: white;
+    -fx-background-radius: 8;
+}
+
+.button-primary:hover {
+    -fx-background-color: #388E3C;
+}
+
+.button-secondary {
+    -fx-background-color: transparent;
+    -fx-text-fill: #4CAF50;
+    -fx-border-color: #4CAF50;
+    -fx-border-radius: 8;
+}
+
+.button-secondary:hover {
+    -fx-background-color: #4CAF50;
+    -fx-text-fill: white;
+}
+
+.button-danger {
+    -fx-background-color: #f44336;
+    -fx-text-fill: white;
+    -fx-background-radius: 8;
+}
+
+.button-danger:hover {
+    -fx-background-color: #d32f2f;
+}
+
+.button-warning {
+    -fx-background-color: #ff9800;
+    -fx-text-fill: white;
+    -fx-background-radius: 8;
+}
+
+.button-warning:hover {
+    -fx-background-color: #ef6c00;
+}
+
+/* Styles pour les champs de texte */
+.text-field, .password-field, .text-area {
+    -fx-background-color: #f8f9fa;
+    -fx-border-color: #e9ecef;
+    -fx-border-radius: 8;
+    -fx-padding: 8 12;
+}
+
+.text-field:focused, .password-field:focused, .text-area:focused {
+    -fx-border-color: #4CAF50;
+    -fx-border-width: 2;
+}
+
+.text-field:error, .password-field:error {
+    -fx-border-color: #f44336;
+}
+
+/* Styles pour les labels */
+.label-title {
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #2E7D32;
+}
+
+.label-subtitle {
+    -fx-font-size: 14px;
+    -fx-text-fill: #666;
+}
+
+.label-error {
+    -fx-text-fill: #f44336;
+    -fx-font-weight: bold;
+}
+
+.label-success {
+    -fx-text-fill: #4CAF50;
+    -fx-font-weight: bold;
+}
+
+.label-info {
+    -fx-text-fill: #2196F3;
+    -fx-font-weight: bold;
+}
+
+/* Styles pour les cartes */
+.card {
+    -fx-background-color: white;
+    -fx-background-radius: 15;
+    -fx-border-color: rgba(0,0,0,0.1);
+    -fx-border-radius: 15;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 10, 0, 0, 2);
+}
+
+.card-hover:hover {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 15, 0, 0, 4);
+    -fx-scale-x: 1.01;
+    -fx-scale-y: 1.01;
+}
+
+/* =========================================== */
+/* STYLES POUR LES TABLES */
+/* =========================================== */
+
+.table-view {
+    -fx-background-color: transparent;
+    -fx-border-color: #e0e0e0;
+    -fx-border-radius: 8;
+}
+
+.table-view .column-header {
+    -fx-background-color: #4CAF50;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-border-color: #388E3C;
+}
+
+.table-view .column-header-background {
+    -fx-background-color: #4CAF50;
+}
+
+.table-view .table-cell {
+    -fx-padding: 10 15;
+    -fx-border-color: transparent transparent #f0f0f0 transparent;
+}
+
+.table-row-cell {
+    -fx-background-color: white;
+}
+
+.table-row-cell:odd {
+    -fx-background-color: #f9f9f9;
+}
+
+.table-row-cell:selected {
+    -fx-background-color: #E8F5E9;
+}
+
+.table-row-cell:hover {
+    -fx-background-color: #F1F8E9;
+}
+
+/* =========================================== */
+/* STYLES POUR LES ONGLETS */
+/* =========================================== */
+
+.tab-pane {
+    -fx-background-color: transparent;
+}
+
+.tab-pane .tab-header-area {
+    -fx-padding: 5 0 0 0;
+}
+
+.tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: transparent;
+}
+
+.tab {
+    -fx-background-color: #f5f5f5;
+    -fx-background-radius: 5 5 0 0;
+    -fx-padding: 10 20;
+    -fx-font-weight: bold;
+}
+
+.tab:selected {
+    -fx-background-color: #4CAF50;
+    -fx-text-fill: white;
+}
+
+.tab:hover {
+    -fx-background-color: #e0e0e0;
+}
+
+.tab:selected:hover {
+    -fx-background-color: #388E3C;
+}
+
+/* =========================================== */
+/* STYLES POUR LES DIALOGUES ET ALERTES */
+/* =========================================== */
+
+.dialog-pane {
+    -fx-background-color: white;
+    -fx-border-color: #4CAF50;
+    -fx-border-width: 2;
+    -fx-border-radius: 10;
+}
+
+.dialog-pane .header-panel {
+    -fx-background-color: #4CAF50;
+    -fx-text-fill: white;
+}
+
+.dialog-pane .header-panel .label {
+    -fx-text-fill: white;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.dialog-pane .content {
+    -fx-padding: 20;
+}
+
+.dialog-pane .button-bar {
+    -fx-padding: 10 20 20 20;
+}
+
+/* =========================================== */
+/* STYLES POUR LES BARRES DE PROGRESSION */
+/* =========================================== */
+
+.progress-bar {
+    -fx-accent: #4CAF50;
+}
+
+.progress-bar .track {
+    -fx-background-color: #f0f0f0;
+    -fx-background-radius: 3;
+    -fx-padding: 0.5px;
+}
+
+.progress-bar .bar {
+    -fx-background-radius: 3;
+    -fx-padding: 0.5px;
+}
+
+/* =========================================== */
+/* STYLES POUR LES MENUS */
+/* =========================================== */
+
+.menu-bar {
+    -fx-background-color: #2E7D32;
+}
+
+.menu {
+    -fx-text-fill: white;
+}
+
+.menu-item {
+    -fx-background-color: white;
+    -fx-padding: 8 15;
+}
+
+.menu-item:hover {
+    -fx-background-color: #E8F5E9;
+}
+
+.menu-item:focused {
+    -fx-background-color: #4CAF50;
+    -fx-text-fill: white;
+}
+
+.context-menu {
+    -fx-background-color: white;
+    -fx-border-color: #e0e0e0;
+    -fx-border-radius: 5;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);
+}
+
+/* =========================================== */
+/* STYLES POUR LES SCROLLPANE */
+/* =========================================== */
+
+.scroll-pane {
+    -fx-background-color: transparent;
+}
+
+.scroll-pane .viewport {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 12;
+}
+
+.scroll-bar:horizontal {
+    -fx-background-color: transparent;
+    -fx-pref-height: 12;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: #c0c0c0;
+    -fx-background-radius: 6;
+}
+
+.scroll-bar .thumb:hover {
+    -fx-background-color: #a0a0a0;
+}
+
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 2;
+}
+
+/* =========================================== */
+/* STYLES POUR LES COMBOBOX */
+/* =========================================== */
+
+.combo-box {
+    -fx-background-color: #f8f9fa;
+    -fx-border-color: #e9ecef;
+    -fx-border-radius: 8;
+}
+
+.combo-box:focused {
+    -fx-border-color: #4CAF50;
+    -fx-border-width: 2;
+}
+
+.combo-box .list-cell {
+    -fx-padding: 8 12;
+}
+
+.combo-box .list-view {
+    -fx-background-color: white;
+    -fx-border-color: #e0e0e0;
+    -fx-border-radius: 5;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);
+}
+
+.combo-box .list-cell:hover {
+    -fx-background-color: #E8F5E9;
+}
+
+/* =========================================== */
+/* STYLES POUR LES CHECKBOX ET RADIOBUTTON */
+/* =========================================== */
+
+.check-box, .radio-button {
+    -fx-text-fill: #333;
+}
+
+.check-box .box, .radio-button .radio {
+    -fx-background-color: white;
+    -fx-border-color: #b0b0b0;
+    -fx-border-radius: 3;
+}
+
+.check-box:selected .mark {
+    -fx-background-color: #4CAF50;
+}
+
+.radio-button:selected .dot {
+    -fx-background-color: #4CAF50;
+}
+
+.check-box:hover .box, .radio-button:hover .radio {
+    -fx-border-color: #4CAF50;
+}
+
+/* =========================================== */
+/* STYLES POUR LES BACKGROUNDS */
+/* =========================================== */
+
+.bg-primary {
+    -fx-background-color: #4CAF50;
+}
+
+.bg-secondary {
+    -fx-background-color: #2196F3;
+}
+
+.bg-success {
+    -fx-background-color: #4CAF50;
+}
+
+.bg-danger {
+    -fx-background-color: #f44336;
+}
+
+.bg-warning {
+    -fx-background-color: #ff9800;
+}
+
+.bg-info {
+    -fx-background-color: #2196F3;
+}
+
+.bg-light {
+    -fx-background-color: #f5f5f5;
+}
+
+.bg-dark {
+    -fx-background-color: #333;
+}
+
+/* =========================================== */
+/* STYLES POUR LES MARGES ET PADDINGS */
+/* =========================================== */
+
+.p-5 { -fx-padding: 5; }
+.p-10 { -fx-padding: 10; }
+.p-15 { -fx-padding: 15; }
+.p-20 { -fx-padding: 20; }
+.p-25 { -fx-padding: 25; }
+.p-30 { -fx-padding: 30; }
+
+.m-5 { -fx-margin: 5; }
+.m-10 { -fx-margin: 10; }
+.m-15 { -fx-margin: 15; }
+.m-20 { -fx-margin: 20; }
+
+/* =========================================== */
+/* ANIMATIONS SIMPLES */
+/* =========================================== */
+
+/* Animation de fade-in */
+@keyframes fadeIn {
+    from {
+        -fx-opacity: 0;
+    }
+    to {
+        -fx-opacity: 1;
+    }
+}
+
+.fade-in {
+    -fx-opacity: 0;
+    animation: fadeIn 0.3s ease-in forwards;
+}
+
+/* Animation de slide (simplifiée pour JavaFX) */
+.slide-up {
+    -fx-translate-y: 20;
+    -fx-opacity: 0;
+    animation: fadeIn 0.3s ease-in forwards;
+}
+
+.slide-down {
+    -fx-translate-y: -20;
+    -fx-opacity: 0;
+    animation: fadeIn 0.3s ease-in forwards;
+}
+
+.slide-left {
+    -fx-translate-x: 20;
+    -fx-opacity: 0;
+    animation: fadeIn 0.3s ease-in forwards;
+}
+
+.slide-right {
+    -fx-translate-x: -20;
+    -fx-opacity: 0;
+    animation: fadeIn 0.3s ease-in forwards;
+}
+
+/* =========================================== */
+/* CLASSES UTILITAIRES */
+/* =========================================== */
+
+.text-center {
+    -fx-alignment: center;
+}
+
+.text-left {
+    -fx-alignment: center-left;
+}
+
+.text-right {
+    -fx-alignment: center-right;
+}
+
+.border {
+    -fx-border-color: #e0e0e0;
+    -fx-border-width: 1;
+    -fx-border-radius: 5;
+}
+
+.border-primary {
+    -fx-border-color: #4CAF50;
+    -fx-border-width: 1;
+    -fx-border-radius: 5;
+}
+
+.border-secondary {
+    -fx-border-color: #2196F3;
+    -fx-border-width: 1;
+    -fx-border-radius: 5;
+}
+
+.rounded {
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+}
+
+.rounded-lg {
+    -fx-background-radius: 15;
+    -fx-border-radius: 15;
+}
+
+.shadow {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);
+}
+
+.shadow-lg {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 10, 0, 0, 4);
+}
+
+.hidden {
+    -fx-visible: false;
+}
+
+.visible {
+    -fx-visible: true;
+}
+
+/* =========================================== */
+/* STYLES SPÉCIFIQUES POUR LOOPI */
+/* =========================================== */
+
+/* Header principal */
+.header-primary {
+    -fx-background-color: linear-gradient(to right, #2E7D32, #4CAF50);
+}
+
+.header-secondary {
+    -fx-background-color: linear-gradient(to right, #2196F3, #1976D2);
+}
+
+/* Sidebar */
+.sidebar {
+    -fx-background-color: #333;
+}
+
+.sidebar-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #CCCCCC;
+    -fx-font-size: 14px;
+    -fx-alignment: center-left;
+    -fx-padding: 15 20;
+    -fx-cursor: hand;
+}
+
+.sidebar-button:hover {
+    -fx-background-color: #444;
+    -fx-text-fill: white;
+}
+
+.sidebar-button-active {
+    -fx-background-color: #4CAF50;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+}
+
+/* Cartes de statistiques */
+.stat-card {
+    -fx-background-color: white;
+    -fx-background-radius: 10;
+    -fx-border-color: #e0e0e0;
+    -fx-border-radius: 10;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);
+    -fx-padding: 20;
+    -fx-alignment: center;
+}
+
+.stat-card-primary {
+    -fx-background-color: #4CAF50;
+    -fx-text-fill: white;
+}
+
+.stat-card-secondary {
+    -fx-background-color: #2196F3;
+    -fx-text-fill: white;
+}
+
+.stat-card-warning {
+    -fx-background-color: #ff9800;
+    -fx-text-fill: white;
+}
+
+.stat-card-danger {
+    -fx-background-color: #f44336;
+    -fx-text-fill: white;
+}
+
+/* Login card */
+.login-card {
+    -fx-background-color: white;
+    -fx-background-radius: 20;
+    -fx-border-color: rgba(0,0,0,0.1);
+    -fx-border-radius: 20;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 25, 0, 0, 5);
+}
+
+/* Gradient backgrounds */
+.bg-gradient-green {
+    -fx-background-color: linear-gradient(to bottom right, #2E7D32, #4CAF50);
+}
+
+.bg-gradient-blue {
+    -fx-background-color: linear-gradient(to bottom right, #1976D2, #2196F3);
+}
+
+.bg-gradient-orange {
+    -fx-background-color: linear-gradient(to bottom right, #f57c00, #ff9800);
+}
+
+/* Override pour les alertes JavaFX */
+.alert {
+    -fx-background-color: white;
+    -fx-border-color: #4CAF50;
+    -fx-border-width: 2;
+}
+
+.alert .dialog-pane {
+    -fx-background-color: white;
+}
+
+.alert .dialog-pane .header-panel {
+    -fx-background-color: #4CAF50;
+}
+
+.alert .dialog-pane .label {
+    -fx-text-fill: white;
+}

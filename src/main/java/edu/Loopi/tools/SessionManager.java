@@ -3,7 +3,7 @@ package edu.Loopi.tools;
 import edu.Loopi.entities.User;
 
 public class SessionManager {
-    private static User currentUser = null;
+    private static User currentUser;
     private static String token = null;
     private static long loginTime = 0;
 
@@ -83,5 +83,9 @@ public class SessionManager {
         } else {
             System.out.println("Aucune session active");
         }
+    }
+
+    public static void setCurrentUser(User user) {
+        currentUser = user;
     }
 }

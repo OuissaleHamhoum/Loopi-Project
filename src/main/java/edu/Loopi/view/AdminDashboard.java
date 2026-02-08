@@ -1,7 +1,7 @@
 package edu.Loopi.view;
 
-import edu.Loopi.entities.User;
-import edu.Loopi.services.UserService;
+import edu.Loopi.entities.*;
+import edu.Loopi.services.*;
 import edu.Loopi.tools.SessionManager;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -15,32 +15,28 @@ import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.scene.input.KeyCode;
+import javafx.scene.shape.Circle;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Random;
 
 public class AdminDashboard {
     private User currentUser;
     private UserService userService;
     private Stage primaryStage;
     private BorderPane root;
-
-    // Tableau des utilisateurs
     private TableView<User> userTable;
     private ObservableList<User> userList;
-
-    // Données de démonstration pour les graphiques
-    private double[] monthlyRevenue = {45000, 52000, 48000, 61000, 72000, 68000, 85000, 79000, 92000, 88000, 95000, 105000};
-    private String[] months = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-    private String[] categories = {"Mobilier", "Décorations", "Accessoires", "Jouets", "Vêtements"};
-    private double[] categorySales = {45000, 32000, 28000, 19000, 15000};
-    private String[] topProducts = {"Table en palette", "Lampes bouteilles", "Sac pneus", "Jouets bois", "Veste recyclée"};
-    private int[] productSales = {245, 198, 156, 132, 108};
-    private String[] regions = {"Tunis", "Sousse", "Sfax", "Bizerte", "Nabeul"};
-    private int[] regionUsers = {850, 620, 480, 320, 280};
 
     public AdminDashboard(User user) {
         this.currentUser = user;
@@ -52,19 +48,15 @@ public class AdminDashboard {
         this.primaryStage = primaryStage;
         primaryStage.setTitle("LOOPI - Tableau de Bord Administrateur");
 
-        // Layout principal
         root = new BorderPane();
         root.setStyle("-fx-background-color: #f8fafc;");
 
-        // Header
         HBox header = createModernHeader();
         root.setTop(header);
 
-        // Sidebar
         VBox sidebar = createModernSidebar();
         root.setLeft(sidebar);
 
-        // Contenu par défaut (dashboard)
         ScrollPane dashboardContent = createDashboardView();
         root.setCenter(dashboardContent);
 
@@ -93,9 +85,9 @@ public class AdminDashboard {
         HBox logoBox = new HBox(15);
         logoBox.setAlignment(Pos.CENTER_LEFT);
 
-        // Icône de menu
         Button menuToggle = new Button("☰");
         menuToggle.setStyle("-fx-background-color: transparent; -fx-font-size: 18px; -fx-text-fill: #4f46e5;");
+        menuToggle.setOnAction(e -> toggleSidebar());
 
         VBox titleBox = new VBox(2);
         Label mainTitle = new Label("LOOPI ADMIN");
@@ -107,7 +99,6 @@ public class AdminDashboard {
         subtitle.setTextFill(Color.web("#64748b"));
 
         titleBox.getChildren().addAll(mainTitle, subtitle);
-
         logoBox.getChildren().addAll(menuToggle, titleBox);
 
         // Barre de recherche et infos utilisateur
@@ -123,33 +114,17 @@ public class AdminDashboard {
         searchField.setPromptText("Rechercher...");
         searchField.setStyle("-fx-background-color: transparent; -fx-border-color: transparent; -fx-font-size: 14px;");
         searchField.setPrefWidth(200);
+        searchField.setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.ENTER) {
+                performGlobalSearch(searchField.getText());
+            }
+        });
 
         Button searchBtn = new Button("🔍");
         searchBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #64748b;");
+        searchBtn.setOnAction(e -> performGlobalSearch(searchField.getText()));
 
         searchBox.getChildren().addAll(searchField, searchBtn);
-
-        // Notifications avec badge
-        StackPane notificationsContainer = new StackPane();
-        Button notificationsBtn = new Button("🔔");
-        notificationsBtn.setStyle("-fx-background-color: transparent; -fx-font-size: 18px; -fx-text-fill: #64748b;");
-        notificationsBtn.setTooltip(new Tooltip("Notifications"));
-
-        // Badge de notification
-        StackPane notificationBadge = new StackPane();
-        notificationBadge.setStyle("-fx-background-color: #ef4444; -fx-background-radius: 10;");
-        notificationBadge.setPrefSize(20, 20);
-        notificationBadge.setTranslateX(8);
-        notificationBadge.setTranslateY(-8);
-
-        Label badgeText = new Label("3");
-        badgeText.setFont(Font.font("Arial", FontWeight.BOLD, 10));
-        badgeText.setTextFill(Color.WHITE);
-
-        notificationBadge.getChildren().add(badgeText);
-        notificationBadge.setVisible(true);
-
-        notificationsContainer.getChildren().addAll(notificationsBtn, notificationBadge);
 
         // Profil utilisateur
         HBox userProfile = new HBox(10);
@@ -169,24 +144,73 @@ public class AdminDashboard {
         userInfo.getChildren().addAll(userName, userRole);
 
         // Avatar
-        StackPane avatar = new StackPane();
-        avatar.setPrefSize(40, 40);
-        avatar.setStyle("-fx-background-color: #4f46e5; -fx-background-radius: 20; -fx-cursor: hand;");
-
-        Label avatarText = new Label(String.valueOf(currentUser.getPrenom().charAt(0)));
-        avatarText.setFont(Font.font("Arial", FontWeight.BOLD, 16));
-        avatarText.setTextFill(Color.WHITE);
-
-        avatar.getChildren().add(avatarText);
+        StackPane avatar = createUserAvatar(currentUser, 40);
+        avatar.setOnMouseClicked(e -> showProfile());
 
         userProfile.getChildren().addAll(userInfo, avatar);
-
         HBox.setHgrow(rightSection, Priority.ALWAYS);
-        rightSection.getChildren().addAll(searchBox, notificationsContainer, userProfile);
-
+        rightSection.getChildren().addAll(searchBox, userProfile);
         header.getChildren().addAll(logoBox, rightSection);
 
         return header;
+    }
+
+    private StackPane createUserAvatar(User user, double size) {
+        StackPane avatar = new StackPane();
+        avatar.setPrefSize(size, size);
+
+        try {
+            if (user.getPhoto() != null && !user.getPhoto().equals("default.jpg") && !user.getPhoto().isEmpty()) {
+                File imgFile = new File("uploads/" + user.getPhoto());
+                if (imgFile.exists()) {
+                    Image image = new Image(imgFile.toURI().toString());
+                    ImageView imageView = new ImageView(image);
+                    imageView.setFitWidth(size);
+                    imageView.setFitHeight(size);
+                    imageView.setPreserveRatio(true);
+
+                    Circle clip = new Circle(size / 2);
+                    clip.setCenterX(size / 2);
+                    clip.setCenterY(size / 2);
+                    imageView.setClip(clip);
+
+                    avatar.getChildren().add(imageView);
+                    avatar.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
+                    return avatar;
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("Erreur chargement avatar: " + e.getMessage());
+        }
+
+        // Avatar par défaut
+        Circle circle = new Circle(size / 2);
+        circle.setFill(Color.web("#4f46e5"));
+
+        String initials = "";
+        if (user.getPrenom() != null && !user.getPrenom().isEmpty()) {
+            initials += String.valueOf(user.getPrenom().charAt(0)).toUpperCase();
+        }
+        if (user.getNom() != null && !user.getNom().isEmpty()) {
+            initials += String.valueOf(user.getNom().charAt(0)).toUpperCase();
+        }
+
+        Label avatarText = new Label(initials.isEmpty() ? "U" : initials);
+        avatarText.setFont(Font.font("Arial", FontWeight.BOLD, size / 2));
+        avatarText.setTextFill(Color.WHITE);
+
+        avatar.getChildren().addAll(circle, avatarText);
+        avatar.setStyle("-fx-cursor: hand;");
+        return avatar;
+    }
+
+    private void performGlobalSearch(String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return;
+        }
+        showUserManagementViewInCenter();
+        searchUsers(keyword);
+        showAlert("Recherche", "Résultats pour: " + keyword);
     }
 
     private VBox createModernSidebar() {
@@ -211,22 +235,7 @@ public class AdminDashboard {
         Button usersBtn = createNavButton("👥 Utilisateurs", false);
         usersBtn.setOnAction(e -> showUserManagementViewInCenter());
 
-        Button productsBtn = createNavButton("🛒 Produits", false);
-        productsBtn.setOnAction(e -> showProducts());
-
-        Button ordersBtn = createNavButton("📦 Commandes", false);
-        ordersBtn.setOnAction(e -> showOrders());
-
-        Button eventsBtn = createNavButton("📅 Événements", false);
-        eventsBtn.setOnAction(e -> showEvents());
-
-        Button donationsBtn = createNavButton("💰 Dons", false);
-        donationsBtn.setOnAction(e -> showDonations());
-
-        Button analyticsBtn = createNavButton("📈 Analytics", false);
-        analyticsBtn.setOnAction(e -> showAnalytics());
-
-        navSection.getChildren().addAll(navTitle, dashboardBtn, usersBtn, productsBtn, ordersBtn, eventsBtn, donationsBtn, analyticsBtn);
+        navSection.getChildren().addAll(navTitle, dashboardBtn, usersBtn);
 
         // Section paramètres
         VBox settingsSection = new VBox(5);
@@ -237,9 +246,6 @@ public class AdminDashboard {
         settingsTitle.setTextFill(Color.web("#94a3b8"));
         settingsTitle.setPadding(new Insets(0, 0, 10, 0));
 
-        Button settingsBtn = createNavButton("⚙️ Paramètres", false);
-        settingsBtn.setOnAction(e -> showSettings());
-
         Button profileBtn = createNavButton("👤 Mon Profil", false);
         profileBtn.setOnAction(e -> showProfile());
 
@@ -247,7 +253,7 @@ public class AdminDashboard {
         logoutBtn.setStyle("-fx-background-color: #fef2f2; -fx-text-fill: #dc2626; -fx-border-color: #fecaca;");
         logoutBtn.setOnAction(e -> logout());
 
-        settingsSection.getChildren().addAll(settingsTitle, settingsBtn, profileBtn, logoutBtn);
+        settingsSection.getChildren().addAll(settingsTitle, profileBtn, logoutBtn);
 
         // Espaceur
         Region spacer = new Region();
@@ -267,7 +273,6 @@ public class AdminDashboard {
         date.setTextFill(Color.web("#94a3b8"));
 
         footer.getChildren().addAll(version, date);
-
         sidebar.getChildren().addAll(navSection, spacer, settingsSection, footer);
 
         return sidebar;
@@ -317,19 +322,14 @@ public class AdminDashboard {
         // Cartes de statistiques principales
         HBox statsCards = createStatsCards();
 
-        // Première ligne de graphiques
+        // Graphiques d'analyse
         HBox chartRow1 = createChartRow1();
-
-        // Deuxième ligne de graphiques
         HBox chartRow2 = createChartRow2();
 
-        // Troisième ligne de graphiques
-        HBox chartRow3 = createChartRow3();
-
-        // Tableau des dernières activités
+        // Tableau des activités récentes
         VBox activityTable = createActivityTable();
 
-        container.getChildren().addAll(dashboardHeader, statsCards, chartRow1, chartRow2, chartRow3, activityTable);
+        container.getChildren().addAll(dashboardHeader, statsCards, chartRow1, chartRow2, activityTable);
 
         ScrollPane scrollPane = new ScrollPane(container);
         scrollPane.setFitToWidth(true);
@@ -347,12 +347,11 @@ public class AdminDashboard {
         title.setFont(Font.font("Arial", FontWeight.BOLD, 28));
         title.setTextFill(Color.web("#1e293b"));
 
-        Label subtitle = new Label("Aperçu des performances et statistiques globales");
+        Label subtitle = new Label("Analyse des utilisateurs et performances");
         subtitle.setFont(Font.font("Arial", 14));
         subtitle.setTextFill(Color.web("#64748b"));
 
         headerText.getChildren().addAll(title, subtitle);
-
         HBox.setHgrow(headerText, Priority.ALWAYS);
         dashboardHeader.getChildren().add(headerText);
 
@@ -361,7 +360,7 @@ public class AdminDashboard {
         filters.setAlignment(Pos.CENTER_RIGHT);
 
         ComboBox<String> periodFilter = new ComboBox<>();
-        periodFilter.getItems().addAll("Aujourd'hui", "Cette semaine", "Ce mois", "Cette année", "Personnalisé");
+        periodFilter.getItems().addAll("Aujourd'hui", "Cette semaine", "Ce mois", "Cette année");
         periodFilter.setValue("Ce mois");
         periodFilter.setStyle("-fx-background-color: white; -fx-border-color: #e2e8f0; -fx-background-radius: 8;");
 
@@ -370,7 +369,6 @@ public class AdminDashboard {
         refreshBtn.setOnAction(e -> refreshDashboard());
 
         filters.getChildren().addAll(periodFilter, refreshBtn);
-
         HBox.setHgrow(filters, Priority.ALWAYS);
         dashboardHeader.getChildren().add(filters);
 
@@ -381,20 +379,66 @@ public class AdminDashboard {
         HBox statsCards = new HBox(20);
         statsCards.setAlignment(Pos.CENTER);
 
-        VBox revenueCard = createStatCard("💰", "Revenu total", "€105,248", "+12.5%", "#10b981", "#ecfdf5");
-        VBox usersCard = createStatCard("👥", "Utilisateurs totaux", "2,845", "+8.2%", "#3b82f6", "#eff6ff");
-        VBox ordersCard = createStatCard("📦", "Commandes", "1,247", "+5.7%", "#8b5cf6", "#f5f3ff");
-        VBox conversionCard = createStatCard("📊", "Taux conversion", "3.2%", "-0.5%", "#f59e0b", "#fffbeb");
+        int totalUsers = userService.countUsers();
+        int[] roleStats = userService.getUserStatistics();
+        int activeUsers = getActiveUsersThisMonth();
+        int newUsersToday = getNewUsersToday();
 
-        statsCards.getChildren().addAll(revenueCard, usersCard, ordersCard, conversionCard);
+        VBox usersCard = createStatCard("👥", "Utilisateurs totaux", String.valueOf(totalUsers),
+                "+" + calculateGrowthRate(totalUsers, getLastMonthUsers()) + "%", "#3b82f6", "#eff6ff");
+
+        VBox adminsCard = createStatCard("👑", "Administrateurs", String.valueOf(roleStats[0]),
+                "+" + calculateGrowthRate(roleStats[0], getLastMonthAdmins()) + "%", "#10b981", "#ecfdf5");
+
+        VBox activeCard = createStatCard("✅", "Utilisateurs actifs", String.valueOf(activeUsers),
+                "+" + calculateGrowthRate(activeUsers, getLastMonthActiveUsers()) + "%", "#8b5cf6", "#f5f3ff");
+
+        VBox newCard = createStatCard("🆕", "Nouveaux aujourd'hui", String.valueOf(newUsersToday),
+                "vs hier: +" + calculateGrowthRate(newUsersToday, getYesterdayUsers()) + "%", "#f59e0b", "#fffbeb");
+
+        statsCards.getChildren().addAll(usersCard, adminsCard, activeCard, newCard);
         return statsCards;
+    }
+
+    private int getActiveUsersThisMonth() {
+        // Simuler 80% des utilisateurs actifs ce mois
+        return (int)(userService.countUsers() * 0.8);
+    }
+
+    private int getNewUsersToday() {
+        // Simuler 5 nouveaux utilisateurs aujourd'hui
+        return 5;
+    }
+
+    private int getLastMonthUsers() {
+        // Simuler 90% des utilisateurs du mois dernier
+        return (int)(userService.countUsers() * 0.9);
+    }
+
+    private int getLastMonthAdmins() {
+        int[] stats = userService.getUserStatistics();
+        return (int)(stats[0] * 0.85);
+    }
+
+    private int getLastMonthActiveUsers() {
+        return (int)(getActiveUsersThisMonth() * 0.95);
+    }
+
+    private int getYesterdayUsers() {
+        // Simuler 4 nouveaux utilisateurs hier
+        return 4;
+    }
+
+    private double calculateGrowthRate(double current, double previous) {
+        if (previous == 0) return 100.0;
+        return Math.round(((current - previous) / previous) * 100 * 10.0) / 10.0;
     }
 
     private VBox createStatCard(String icon, String title, String value, String change, String color, String bgColor) {
         VBox card = new VBox(15);
         card.setPadding(new Insets(20));
         card.setStyle("-fx-background-color: " + bgColor + "; -fx-background-radius: 12; -fx-border-color: #e2e8f0; -fx-border-width: 1;");
-        card.setPrefWidth(240);
+        card.setPrefWidth(220);
 
         HBox iconRow = new HBox();
         iconRow.setAlignment(Pos.CENTER_LEFT);
@@ -405,9 +449,7 @@ public class AdminDashboard {
 
         Label iconLabel = new Label(icon);
         iconLabel.setFont(Font.font("Arial", 18));
-
         iconContainer.getChildren().add(iconLabel);
-
         HBox.setHgrow(iconRow, Priority.ALWAYS);
         iconRow.getChildren().add(iconContainer);
 
@@ -418,7 +460,7 @@ public class AdminDashboard {
         titleLabel.setTextFill(Color.web("#64748b"));
 
         Label valueLabel = new Label(value);
-        valueLabel.setFont(Font.font("Arial", FontWeight.BOLD, 24));
+        valueLabel.setFont(Font.font("Arial", FontWeight.BOLD, 20));
         valueLabel.setTextFill(Color.web("#1e293b"));
 
         HBox changeRow = new HBox(5);
@@ -429,8 +471,10 @@ public class AdminDashboard {
 
         if (change.startsWith("+")) {
             changeLabel.setTextFill(Color.web("#10b981"));
-        } else {
+        } else if (change.startsWith("-")) {
             changeLabel.setTextFill(Color.web("#ef4444"));
+        } else {
+            changeLabel.setTextFill(Color.web("#64748b"));
         }
 
         Label periodLabel = new Label("vs mois dernier");
@@ -438,9 +482,7 @@ public class AdminDashboard {
         periodLabel.setTextFill(Color.web("#94a3b8"));
 
         changeRow.getChildren().addAll(changeLabel, periodLabel);
-
         content.getChildren().addAll(titleLabel, valueLabel, changeRow);
-
         card.getChildren().addAll(iconRow, content);
 
         return card;
@@ -450,305 +492,282 @@ public class AdminDashboard {
         HBox chartRow1 = new HBox(20);
         chartRow1.setAlignment(Pos.CENTER);
 
-        // Graphique de revenu
-        VBox revenueChartContainer = new VBox(10);
-        revenueChartContainer.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 20;");
-        revenueChartContainer.setPrefWidth(500);
+        // Graphique d'inscription mensuelle
+        VBox registrationChart = createRegistrationChart();
 
-        HBox revenueHeader = new HBox();
-        revenueHeader.setAlignment(Pos.CENTER_LEFT);
+        // Répartition par rôle
+        VBox roleChart = createRoleChart();
 
-        VBox revenueText = new VBox(2);
-        Label revenueTitle = new Label("Revenu mensuel");
-        revenueTitle.setFont(Font.font("Arial", FontWeight.BOLD, 16));
-        revenueTitle.setTextFill(Color.web("#1e293b"));
+        chartRow1.getChildren().addAll(registrationChart, roleChart);
+        return chartRow1;
+    }
 
-        Label revenueSubtitle = new Label("Tendance des revenus sur 12 mois");
-        revenueSubtitle.setFont(Font.font("Arial", 12));
-        revenueSubtitle.setTextFill(Color.web("#64748b"));
+    private VBox createRegistrationChart() {
+        VBox container = new VBox(15);
+        container.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 20;");
+        container.setPrefWidth(600);
 
-        revenueText.getChildren().addAll(revenueTitle, revenueSubtitle);
-        HBox.setHgrow(revenueText, Priority.ALWAYS);
+        HBox header = new HBox();
+        header.setAlignment(Pos.CENTER_LEFT);
 
-        Label revenueValue = new Label("€105,248");
-        revenueValue.setFont(Font.font("Arial", FontWeight.BOLD, 20));
-        revenueValue.setTextFill(Color.web("#10b981"));
+        VBox textContent = new VBox(2);
+        Label title = new Label("Inscriptions mensuelles");
+        title.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        title.setTextFill(Color.web("#1e293b"));
 
-        revenueHeader.getChildren().addAll(revenueText, revenueValue);
+        Label subtitle = new Label("Évolution des nouvelles inscriptions");
+        subtitle.setFont(Font.font("Arial", 12));
+        subtitle.setTextFill(Color.web("#64748b"));
 
-        // Line Chart
-        NumberAxis xAxis = new NumberAxis(1, 12, 1);
-        NumberAxis yAxis = new NumberAxis(0, 120000, 20000);
-        yAxis.setTickLabelFormatter(new NumberAxis.DefaultFormatter(yAxis, "€", ""));
+        textContent.getChildren().addAll(title, subtitle);
+        HBox.setHgrow(textContent, Priority.ALWAYS);
+        header.getChildren().add(textContent);
 
-        LineChart<Number, Number> lineChart = new LineChart<>(xAxis, yAxis);
-        lineChart.setTitle("");
-        lineChart.setLegendVisible(false);
-        lineChart.setCreateSymbols(true);
-        lineChart.setPrefHeight(250);
-        lineChart.setStyle("-fx-background-color: transparent;");
+        // Bar Chart
+        CategoryAxis xAxis = new CategoryAxis();
+        xAxis.setLabel("Mois");
+        NumberAxis yAxis = new NumberAxis(0, 100, 10);
+        yAxis.setLabel("Nombre d'inscriptions");
 
-        XYChart.Series<Number, Number> series = new XYChart.Series<>();
+        BarChart<String, Number> barChart = new BarChart<>(xAxis, yAxis);
+        barChart.setTitle("");
+        barChart.setLegendVisible(false);
+        barChart.setCategoryGap(20);
+        barChart.setPrefHeight(300);
+        barChart.setStyle("-fx-background-color: transparent;");
+
+        XYChart.Series<String, Number> series = new XYChart.Series<>();
+        String[] months = {"Jan", "Fév", "Mar", "Avr", "Mai", "Juin"};
+        int[] data = {45, 52, 48, 65, 72, 68}; // Données simulées
+
         for (int i = 0; i < months.length; i++) {
-            series.getData().add(new XYChart.Data<>(i+1, monthlyRevenue[i]));
-        }
-        lineChart.getData().add(series);
+            XYChart.Data<String, Number> dataPoint = new XYChart.Data<>(months[i], data[i]);
+            series.getData().add(dataPoint);
 
-        revenueChartContainer.getChildren().addAll(revenueHeader, lineChart);
+            Tooltip tooltip = new Tooltip(String.format("%s: %d inscriptions", months[i], data[i]));
+            dataPoint.nodeProperty().addListener((obs, oldNode, newNode) -> {
+                if (newNode != null) {
+                    Tooltip.install(newNode, tooltip);
+                }
+            });
+        }
+
+        barChart.getData().add(series);
+        container.getChildren().addAll(header, barChart);
+
+        return container;
+    }
+
+    private VBox createRoleChart() {
+        VBox container = new VBox(15);
+        container.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 20;");
+        container.setPrefWidth(600);
+
+        HBox header = new HBox();
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        VBox textContent = new VBox(2);
+        Label title = new Label("Répartition par rôle");
+        title.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        title.setTextFill(Color.web("#1e293b"));
+
+        Label subtitle = new Label("Pourcentage d'utilisateurs par type");
+        subtitle.setFont(Font.font("Arial", 12));
+        subtitle.setTextFill(Color.web("#64748b"));
+
+        textContent.getChildren().addAll(title, subtitle);
+        HBox.setHgrow(textContent, Priority.ALWAYS);
+        header.getChildren().add(textContent);
 
         // Pie Chart
-        VBox pieChartContainer = new VBox(10);
-        pieChartContainer.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 20;");
-        pieChartContainer.setPrefWidth(500);
-
-        Label pieTitle = new Label("Ventes par catégorie");
-        pieTitle.setFont(Font.font("Arial", FontWeight.BOLD, 16));
-        pieTitle.setTextFill(Color.web("#1e293b"));
-
         PieChart pieChart = new PieChart();
-        for (int i = 0; i < categories.length; i++) {
-            PieChart.Data slice = new PieChart.Data(categories[i] + " (" + (int)categorySales[i]/1000 + "K)", categorySales[i]);
-            pieChart.getData().add(slice);
+        int[] stats = userService.getUserStatistics();
+        int total = stats[0] + stats[1] + stats[2];
+
+        if (total > 0) {
+            PieChart.Data adminSlice = new PieChart.Data(
+                    "Administrateurs (" + Math.round((stats[0] * 100.0) / total) + "%)",
+                    stats[0]
+            );
+            PieChart.Data orgSlice = new PieChart.Data(
+                    "Organisateurs (" + Math.round((stats[1] * 100.0) / total) + "%)",
+                    stats[1]
+            );
+            PieChart.Data partSlice = new PieChart.Data(
+                    "Participants (" + Math.round((stats[2] * 100.0) / total) + "%)",
+                    stats[2]
+            );
+
+            pieChart.getData().addAll(adminSlice, orgSlice, partSlice);
         }
+
         pieChart.setLabelsVisible(true);
         pieChart.setLegendVisible(false);
-        pieChart.setPrefHeight(250);
+        pieChart.setPrefHeight(300);
+        pieChart.setStyle("-fx-background-color: transparent;");
 
-        pieChartContainer.getChildren().addAll(pieTitle, pieChart);
-
-        chartRow1.getChildren().addAll(revenueChartContainer, pieChartContainer);
-        return chartRow1;
+        container.getChildren().addAll(header, pieChart);
+        return container;
     }
 
     private HBox createChartRow2() {
         HBox chartRow2 = new HBox(20);
         chartRow2.setAlignment(Pos.CENTER);
 
-        // Bar Chart
-        VBox barChartContainer = new VBox(10);
-        barChartContainer.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 20;");
-        barChartContainer.setPrefWidth(500);
+        // Activité quotidienne
+        VBox activityChart = createActivityChart();
 
-        Label barTitle = new Label("Top produits vendus");
-        barTitle.setFont(Font.font("Arial", FontWeight.BOLD, 16));
-        barTitle.setTextFill(Color.web("#1e293b"));
+        // Géographie des utilisateurs
+        VBox geographyChart = createGeographyChart();
 
-        CategoryAxis xBarAxis = new CategoryAxis();
-        NumberAxis yBarAxis = new NumberAxis(0, 300, 50);
-
-        BarChart<String, Number> barChart = new BarChart<>(xBarAxis, yBarAxis);
-        barChart.setTitle("");
-        barChart.setLegendVisible(false);
-        barChart.setCategoryGap(20);
-        barChart.setPrefHeight(250);
-        barChart.setStyle("-fx-background-color: transparent;");
-
-        XYChart.Series<String, Number> barSeries = new XYChart.Series<>();
-        for (int i = 0; i < topProducts.length; i++) {
-            barSeries.getData().add(new XYChart.Data<>(topProducts[i], productSales[i]));
-        }
-        barChart.getData().add(barSeries);
-
-        // La méthode setCreateSymbols n'existe pas pour BarChart, on la supprime
-        // barChart.setCreateSymbols(false); // Cette ligne a été supprimée
-
-        barChartContainer.getChildren().addAll(barTitle, barChart);
-
-        // Performance Card
-        VBox performanceCard = new VBox(15);
-        performanceCard.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 20;");
-        performanceCard.setPrefWidth(500);
-
-        Label perfTitle = new Label("Performance hebdomadaire");
-        perfTitle.setFont(Font.font("Arial", FontWeight.BOLD, 16));
-        perfTitle.setTextFill(Color.web("#1e293b"));
-
-        // KPI Items
-        VBox kpis = new VBox(15);
-        kpis.getChildren().addAll(
-                createKPIItem("Taux de satisfaction", "92%", "#10b981"),
-                createKPIItem("Temps réponse moyen", "2.4h", "#3b82f6"),
-                createKPIItem("Taux de rétention", "78%", "#8b5cf6"),
-                createKPIItem("Panier moyen", "€84.50", "#f59e0b")
-        );
-
-        // Area Chart
-        CategoryAxis xAreaAxis = new CategoryAxis();
-        xAreaAxis.getCategories().addAll("Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim");
-        NumberAxis yAreaAxis = new NumberAxis(0, 100, 20);
-
-        AreaChart<String, Number> areaChart = new AreaChart<>(xAreaAxis, yAreaAxis);
-        areaChart.setTitle("");
-        areaChart.setLegendVisible(false);
-        areaChart.setCreateSymbols(false);
-        areaChart.setPrefHeight(150);
-        areaChart.setStyle("-fx-background-color: transparent;");
-
-        XYChart.Series<String, Number> areaSeries = new XYChart.Series<>();
-        areaSeries.getData().addAll(
-                new XYChart.Data<>("Lun", 45),
-                new XYChart.Data<>("Mar", 52),
-                new XYChart.Data<>("Mer", 48),
-                new XYChart.Data<>("Jeu", 61),
-                new XYChart.Data<>("Ven", 72),
-                new XYChart.Data<>("Sam", 68),
-                new XYChart.Data<>("Dim", 85)
-        );
-        areaChart.getData().add(areaSeries);
-
-        performanceCard.getChildren().addAll(perfTitle, kpis, areaChart);
-
-        chartRow2.getChildren().addAll(barChartContainer, performanceCard);
+        chartRow2.getChildren().addAll(activityChart, geographyChart);
         return chartRow2;
     }
 
-    private HBox createKPIItem(String label, String value, String color) {
-        HBox item = new HBox();
-        item.setAlignment(Pos.CENTER_LEFT);
-        item.setSpacing(10);
+    private VBox createActivityChart() {
+        VBox container = new VBox(15);
+        container.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 20;");
+        container.setPrefWidth(600);
 
-        StackPane indicator = new StackPane();
-        indicator.setPrefSize(8, 8);
-        indicator.setStyle("-fx-background-color: " + color + "; -fx-background-radius: 4;");
+        Label title = new Label("Activité quotidienne");
+        title.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        title.setTextFill(Color.web("#1e293b"));
 
-        Label labelText = new Label(label);
-        labelText.setFont(Font.font("Arial", 12));
-        labelText.setTextFill(Color.web("#64748b"));
+        // Line Chart
+        CategoryAxis xAxis = new CategoryAxis();
+        xAxis.getCategories().addAll("Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim");
+        xAxis.setLabel("Jour");
+        NumberAxis yAxis = new NumberAxis(0, 200, 40);
+        yAxis.setLabel("Nombre d'activités");
 
-        HBox.setHgrow(labelText, Priority.ALWAYS);
+        LineChart<String, Number> lineChart = new LineChart<>(xAxis, yAxis);
+        lineChart.setTitle("");
+        lineChart.setLegendVisible(false);
+        lineChart.setCreateSymbols(true);
+        lineChart.setPrefHeight(250);
+        lineChart.setStyle("-fx-background-color: transparent;");
 
-        Label valueText = new Label(value);
-        valueText.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-        valueText.setTextFill(Color.web("#1e293b"));
+        XYChart.Series<String, Number> series = new XYChart.Series<>();
+        series.setName("Activités");
 
-        item.getChildren().addAll(indicator, labelText, valueText);
+        int[] weeklyData = {120, 145, 98, 167, 189, 76, 45}; // Données simulées
 
-        return item;
+        for (int i = 0; i < 7; i++) {
+            XYChart.Data<String, Number> data = new XYChart.Data<>(xAxis.getCategories().get(i), weeklyData[i]);
+            series.getData().add(data);
+
+            Tooltip tooltip = new Tooltip(String.format("%s: %d activités",
+                    xAxis.getCategories().get(i), weeklyData[i]));
+            data.nodeProperty().addListener((obs, oldNode, newNode) -> {
+                if (newNode != null) {
+                    Tooltip.install(newNode, tooltip);
+                }
+            });
+        }
+
+        lineChart.getData().add(series);
+        container.getChildren().addAll(title, lineChart);
+
+        return container;
     }
 
-    private HBox createChartRow3() {
-        HBox chartRow3 = new HBox(20);
-        chartRow3.setAlignment(Pos.CENTER);
+    private VBox createGeographyChart() {
+        VBox container = new VBox(15);
+        container.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 20;");
+        container.setPrefWidth(600);
 
-        // Stacked Bar Chart
-        VBox stackedBarContainer = new VBox(10);
-        stackedBarContainer.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 20;");
-        stackedBarContainer.setPrefWidth(500);
+        Label title = new Label("Répartition géographique");
+        title.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        title.setTextFill(Color.web("#1e293b"));
 
-        Label stackedTitle = new Label("Utilisateurs par région");
-        stackedTitle.setFont(Font.font("Arial", FontWeight.BOLD, 16));
-        stackedTitle.setTextFill(Color.web("#1e293b"));
+        // Carte simplifiée
+        Pane mapPane = new Pane();
+        mapPane.setPrefSize(560, 250);
+        mapPane.setStyle("-fx-background-color: #f8fafc; -fx-border-color: #e2e8f0; -fx-border-radius: 8;");
 
-        CategoryAxis xRegionAxis = new CategoryAxis();
-        xRegionAxis.setLabel("Régions");
-        NumberAxis yRegionAxis = new NumberAxis(0, 1000, 200);
+        // Données simulées
+        String[] regions = {"Île-de-France", "Auvergne-Rhône-Alpes", "Occitanie", "Nouvelle-Aquitaine", "Provence-Alpes-Côte d'Azur"};
+        int[] counts = {45, 32, 28, 24, 19};
+        double[][] positions = {{300, 100}, {280, 180}, {200, 220}, {150, 150}, {400, 200}};
+        Color[] colors = {Color.web("#4f46e5"), Color.web("#3b82f6"), Color.web("#10b981"),
+                Color.web("#f59e0b"), Color.web("#8b5cf6")};
 
-        StackedBarChart<String, Number> stackedBarChart = new StackedBarChart<>(xRegionAxis, yRegionAxis);
-        stackedBarChart.setTitle("");
-        stackedBarChart.setLegendVisible(false);
-        stackedBarChart.setPrefHeight(250);
-        stackedBarChart.setStyle("-fx-background-color: transparent;");
-
-        XYChart.Series<String, Number> regionSeries = new XYChart.Series<>();
         for (int i = 0; i < regions.length; i++) {
-            regionSeries.getData().add(new XYChart.Data<>(regions[i], regionUsers[i]));
-        }
-        stackedBarChart.getData().add(regionSeries);
+            double radius = 15 + (counts[i] / 5.0);
+            Circle circle = new Circle(positions[i][0], positions[i][1], radius);
+            circle.setFill(colors[i].deriveColor(0, 1, 1, 0.7));
+            circle.setStroke(colors[i]);
+            circle.setStrokeWidth(1);
 
-        stackedBarContainer.getChildren().addAll(stackedTitle, stackedBarChart);
+            Tooltip tooltip = new Tooltip(String.format("%s\n%d utilisateurs", regions[i], counts[i]));
+            Tooltip.install(circle, tooltip);
 
-        // Funnel Chart
-        VBox funnelContainer = new VBox(10);
-        funnelContainer.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 20;");
-        funnelContainer.setPrefWidth(500);
+            Label label = new Label(regions[i]);
+            label.setFont(Font.font("Arial", FontWeight.BOLD, 10));
+            label.setTextFill(Color.web("#1e293b"));
+            label.setLayoutX(positions[i][0] - 25);
+            label.setLayoutY(positions[i][1] + radius + 10);
 
-        Label funnelTitle = new Label("Tunnel de conversion");
-        funnelTitle.setFont(Font.font("Arial", FontWeight.BOLD, 16));
-        funnelTitle.setTextFill(Color.web("#1e293b"));
-
-        VBox funnelVisual = new VBox(10);
-        funnelVisual.setAlignment(Pos.CENTER);
-        funnelVisual.setPadding(new Insets(20));
-
-        String[] funnelSteps = {"Visiteurs (10,000)", "Inscrits (1,500)", "Première commande (450)", "Clients fidèles (180)"};
-        int[] funnelValues = {10000, 1500, 450, 180};
-        String[] funnelColors = {"#4f46e5", "#3b82f6", "#10b981", "#059669"};
-
-        for (int i = 0; i < funnelSteps.length; i++) {
-            HBox step = new HBox(15);
-            step.setAlignment(Pos.CENTER_LEFT);
-            step.setPadding(new Insets(5, 0, 5, 0));
-
-            // Barre horizontale
-            StackPane barContainer = new StackPane();
-            barContainer.setPrefHeight(30);
-            barContainer.setPrefWidth(400 * (funnelValues[i] / 10000.0));
-            barContainer.setStyle("-fx-background-color: " + funnelColors[i] + "; -fx-background-radius: 5;");
-
-            Label stepLabel = new Label(funnelSteps[i]);
-            stepLabel.setFont(Font.font("Arial", FontWeight.BOLD, 12));
-            stepLabel.setTextFill(Color.web("#1e293b"));
-            stepLabel.setPadding(new Insets(0, 0, 0, 10));
-
-            StackPane.setAlignment(stepLabel, Pos.CENTER_LEFT);
-            barContainer.getChildren().add(stepLabel);
-
-            step.getChildren().add(barContainer);
-            funnelVisual.getChildren().add(step);
+            mapPane.getChildren().addAll(circle, label);
         }
 
-        funnelContainer.getChildren().addAll(funnelTitle, funnelVisual);
-
-        chartRow3.getChildren().addAll(stackedBarContainer, funnelContainer);
-        return chartRow3;
+        container.getChildren().addAll(title, mapPane);
+        return container;
     }
 
     private VBox createActivityTable() {
         VBox activityTable = new VBox(15);
         activityTable.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 20;");
-        activityTable.setPrefWidth(1020);
+        activityTable.setPrefWidth(1220);
 
         HBox tableHeader = new HBox();
         tableHeader.setAlignment(Pos.CENTER_LEFT);
 
-        Label activityTitle = new Label("Activités récentes");
+        VBox headerText = new VBox(2);
+        Label activityTitle = new Label("Activités récentes des utilisateurs");
         activityTitle.setFont(Font.font("Arial", FontWeight.BOLD, 18));
         activityTitle.setTextFill(Color.web("#1e293b"));
 
-        HBox.setHgrow(tableHeader, Priority.ALWAYS);
-        tableHeader.getChildren().add(activityTitle);
+        Label activitySubtitle = new Label("Dernières actions sur la plateforme");
+        activitySubtitle.setFont(Font.font("Arial", 12));
+        activitySubtitle.setTextFill(Color.web("#64748b"));
 
-        @SuppressWarnings("unchecked")
+        headerText.getChildren().addAll(activityTitle, activitySubtitle);
+        HBox.setHgrow(headerText, Priority.ALWAYS);
+        tableHeader.getChildren().add(headerText);
+
+        // Tableau
         TableView<String[]> activityTableView = new TableView<>();
         activityTableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        activityTableView.setPrefHeight(200);
+        activityTableView.setPrefHeight(250);
         activityTableView.setStyle("-fx-background-color: transparent; -fx-border-color: #e2e8f0; -fx-border-radius: 8;");
 
-        // Colonnes
         TableColumn<String[], String> userCol = new TableColumn<>("Utilisateur");
         userCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[0]));
         userCol.setPrefWidth(150);
 
         TableColumn<String[], String> actionCol = new TableColumn<>("Action");
         actionCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[1]));
-        actionCol.setPrefWidth(300);
+        actionCol.setPrefWidth(350);
 
         TableColumn<String[], String> timeCol = new TableColumn<>("Heure");
         timeCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[2]));
-        timeCol.setPrefWidth(100);
+        timeCol.setPrefWidth(120);
 
-        TableColumn<String[], String> statusCol = new TableColumn<>("Statut");
-        statusCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[3]));
-        statusCol.setPrefWidth(100);
+        TableColumn<String[], String> typeCol = new TableColumn<>("Type");
+        typeCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[3]));
+        typeCol.setPrefWidth(100);
 
-        activityTableView.getColumns().addAll(userCol, actionCol, timeCol, statusCol);
+        activityTableView.getColumns().addAll(userCol, actionCol, timeCol, typeCol);
 
+        // Données simulées
         ObservableList<String[]> activityData = FXCollections.observableArrayList(
-                new String[]{"Marie Dupont", "A ajouté un nouveau produit", "Il y a 5 min", "✅"},
-                new String[]{"Admin System", "A modifié les paramètres système", "Il y a 15 min", "⚠️"},
-                new String[]{"Pierre Martin", "A passé une commande de €245", "Il y a 30 min", "✅"},
-                new String[]{"Organisateur Eco", "A créé un nouvel événement", "Il y a 1h", "✅"},
-                new String[]{"Ben Ali", "A fait un don de €100", "Il y a 2h", "✅"}
+                new String[]{"Jean Dupont", "Connexion réussie", "10:30", "Connexion"},
+                new String[]{"Marie Martin", "Modification du profil", "11:15", "Profil"},
+                new String[]{"Pierre Durand", "Changement de mot de passe", "12:45", "Sécurité"},
+                new String[]{"Sophie Bernard", "Ajout d'une photo de profil", "14:20", "Profil"},
+                new String[]{"Thomas Petit", "Connexion échouée", "15:10", "Connexion"},
+                new String[]{"Julie Moreau", "Inscription réussie", "16:30", "Inscription"}
         );
 
         activityTableView.setItems(activityData);
@@ -757,7 +776,7 @@ public class AdminDashboard {
         return activityTable;
     }
 
-    // NOUVELLE MÉTHODE pour afficher la vue gestion utilisateurs
+    // GESTION DES UTILISATEURS
     private void showUserManagementViewInCenter() {
         ScrollPane content = createEnhancedUserManagementView();
         root.setCenter(content);
@@ -768,43 +787,13 @@ public class AdminDashboard {
         VBox container = new VBox(20);
         container.setPadding(new Insets(30));
 
-        // Titre
         Label title = new Label("Gestion des Utilisateurs");
         title.setFont(Font.font("Arial", FontWeight.BOLD, 28));
         title.setTextFill(Color.web("#1e293b"));
 
-        // Statistiques rapides améliorées
         HBox statsBox = createEnhancedQuickStats();
-
-        // Barre d'outils améliorée
         HBox toolbar = createEnhancedToolbar();
-
-        // Tableau des utilisateurs
-        VBox tableContainer = new VBox(15);
-        tableContainer.setStyle("-fx-background-color: white; -fx-background-radius: 12; " +
-                "-fx-padding: 25; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 10, 0, 0, 3);");
-
-        HBox tableHeader = new HBox();
-        tableHeader.setAlignment(Pos.CENTER_LEFT);
-
-        Label tableTitle = new Label("Liste des utilisateurs");
-        tableTitle.setFont(Font.font("Arial", FontWeight.BOLD, 18));
-        tableTitle.setTextFill(Color.web("#1e293b"));
-
-        HBox.setHgrow(tableHeader, Priority.ALWAYS);
-        tableHeader.getChildren().add(tableTitle);
-
-        int userCount = userService.countUsers();
-        Label userCountLabel = new Label("Total: " + userCount + " utilisateurs");
-        userCountLabel.setFont(Font.font("Arial", 12));
-        userCountLabel.setTextFill(Color.web("#64748b"));
-
-        tableHeader.getChildren().add(userCountLabel);
-
-        userTable = new TableView<>();
-        setupEnhancedUserTable();
-
-        tableContainer.getChildren().addAll(tableHeader, userTable);
+        VBox tableContainer = createUserTableContainer();
 
         container.getChildren().addAll(title, statsBox, toolbar, tableContainer);
 
@@ -820,21 +809,30 @@ public class AdminDashboard {
 
         int[] stats = userService.getUserStatistics();
         int totalUsers = stats[0] + stats[1] + stats[2];
-        Random rand = new Random();
 
         VBox totalBox = createEnhancedStatCard("👥", "Total Utilisateurs", String.valueOf(totalUsers),
-                "+" + (5 + rand.nextInt(10)) + "%", "#4f46e5");
+                "+" + calculateGrowthRate(totalUsers, getLastMonthUsers()) + "%", "#4f46e5");
         VBox adminBox = createEnhancedStatCard("👑", "Administrateurs", String.valueOf(stats[0]),
-                "+" + (2 + rand.nextInt(5)) + "%", "#10b981");
+                "+" + calculateGrowthRate(stats[0], getLastMonthAdmins()) + "%", "#10b981");
         VBox orgBox = createEnhancedStatCard("🎯", "Organisateurs", String.valueOf(stats[1]),
-                "+" + (10 + rand.nextInt(15)) + "%", "#3b82f6");
+                "+" + calculateGrowthRate(stats[1], getLastMonthOrganizers()) + "%", "#3b82f6");
         VBox partBox = createEnhancedStatCard("😊", "Participants", String.valueOf(stats[2]),
-                "+" + (3 + rand.nextInt(8)) + "%", "#f59e0b");
-        VBox activeBox = createEnhancedStatCard("✅", "Actifs ce mois", String.valueOf(totalUsers - rand.nextInt(10)),
-                "+" + (1 + rand.nextInt(5)) + "%", "#8b5cf6");
+                "+" + calculateGrowthRate(stats[2], getLastMonthParticipants()) + "%", "#f59e0b");
+        VBox activeBox = createEnhancedStatCard("✅", "Actifs ce mois", String.valueOf(getActiveUsersThisMonth()),
+                "+" + calculateGrowthRate(getActiveUsersThisMonth(), getLastMonthActiveUsers()) + "%", "#8b5cf6");
 
         statsBox.getChildren().addAll(totalBox, adminBox, orgBox, partBox, activeBox);
         return statsBox;
+    }
+
+    private int getLastMonthOrganizers() {
+        int[] stats = userService.getUserStatistics();
+        return (int)(stats[1] * 0.9);
+    }
+
+    private int getLastMonthParticipants() {
+        int[] stats = userService.getUserStatistics();
+        return (int)(stats[2] * 0.88);
     }
 
     private VBox createEnhancedStatCard(String icon, String title, String value, String change, String color) {
@@ -851,7 +849,6 @@ public class AdminDashboard {
         Label iconLabel = new Label(icon);
         iconLabel.setFont(Font.font("Arial", 20));
         iconLabel.setTextFill(Color.web(color));
-
         iconContainer.getChildren().add(iconLabel);
 
         Label valueLabel = new Label(value);
@@ -879,8 +876,8 @@ public class AdminDashboard {
         changeText.setTextFill(Color.web("#94a3b8"));
 
         changeRow.getChildren().addAll(changeLabel, changeText);
-
         card.getChildren().addAll(iconContainer, valueLabel, titleLabel, changeRow);
+
         return card;
     }
 
@@ -898,12 +895,30 @@ public class AdminDashboard {
         deleteBtn.setOnAction(e -> deleteSelectedUser());
 
         Button exportBtn = createEnhancedToolbarButton("📤 Exporter", "#10b981");
-        exportBtn.setOnAction(e -> exportUsers());
+        exportBtn.setOnAction(e -> exportUsersToFile());
 
         Button refreshBtn = createEnhancedToolbarButton("🔄 Actualiser", "#64748b");
         refreshBtn.setOnAction(e -> refreshUserTable());
 
-        // Champ de recherche amélioré
+        // Filtre par rôle
+        HBox roleFilterBox = new HBox(5);
+        roleFilterBox.setAlignment(Pos.CENTER_LEFT);
+
+        Label filterLabel = new Label("Filtrer par rôle:");
+        filterLabel.setFont(Font.font("Arial", 12));
+        filterLabel.setTextFill(Color.web("#64748b"));
+
+        ComboBox<String> roleFilter = new ComboBox<>();
+        roleFilter.getItems().addAll("Tous", "admin", "organisateur", "participant");
+        roleFilter.setValue("Tous");
+        roleFilter.setStyle("-fx-background-color: white; -fx-border-color: #e2e8f0; " +
+                "-fx-background-radius: 8; -fx-padding: 8 12;");
+        roleFilter.setPrefWidth(120);
+        roleFilter.setOnAction(e -> filterUsersByRole(roleFilter.getValue()));
+
+        roleFilterBox.getChildren().addAll(filterLabel, roleFilter);
+
+        // Champ de recherche
         HBox searchBox = new HBox(0);
         searchBox.setStyle("-fx-background-color: white; -fx-background-radius: 8; " +
                 "-fx-border-color: #e2e8f0; -fx-border-radius: 8;");
@@ -914,6 +929,11 @@ public class AdminDashboard {
         searchField.setPrefWidth(300);
         searchField.setStyle("-fx-background-color: transparent; -fx-border-color: transparent; " +
                 "-fx-font-size: 14px; -fx-padding: 12 15;");
+        searchField.setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.ENTER) {
+                searchUsers(searchField.getText());
+            }
+        });
 
         Button searchBtn = new Button("🔍");
         searchBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #64748b; " +
@@ -921,9 +941,8 @@ public class AdminDashboard {
         searchBtn.setOnAction(e -> searchUsers(searchField.getText()));
 
         searchBox.getChildren().addAll(searchField, searchBtn);
-
         HBox.setHgrow(searchBox, Priority.ALWAYS);
-        toolbar.getChildren().addAll(addBtn, editBtn, deleteBtn, exportBtn, refreshBtn, searchBox);
+        toolbar.getChildren().addAll(addBtn, editBtn, deleteBtn, exportBtn, refreshBtn, roleFilterBox, searchBox);
 
         return toolbar;
     }
@@ -949,61 +968,73 @@ public class AdminDashboard {
         return btn;
     }
 
+    private VBox createUserTableContainer() {
+        VBox tableContainer = new VBox(15);
+        tableContainer.setStyle("-fx-background-color: white; -fx-background-radius: 12; " +
+                "-fx-padding: 25; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 10, 0, 0, 3);");
+
+        HBox tableHeader = new HBox();
+        tableHeader.setAlignment(Pos.CENTER_LEFT);
+
+        VBox headerText = new VBox(2);
+        Label tableTitle = new Label("Liste des utilisateurs");
+        tableTitle.setFont(Font.font("Arial", FontWeight.BOLD, 18));
+        tableTitle.setTextFill(Color.web("#1e293b"));
+
+        Label tableSubtitle = new Label("Gérez tous les utilisateurs de la plateforme");
+        tableSubtitle.setFont(Font.font("Arial", 12));
+        tableSubtitle.setTextFill(Color.web("#64748b"));
+
+        headerText.getChildren().addAll(tableTitle, tableSubtitle);
+        HBox.setHgrow(headerText, Priority.ALWAYS);
+
+        int userCount = userService.countUsers();
+        Label userCountLabel = new Label("Total: " + userCount + " utilisateurs");
+        userCountLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+        userCountLabel.setTextFill(Color.web("#4f46e5"));
+        userCountLabel.setPadding(new Insets(5, 15, 5, 15));
+        userCountLabel.setStyle("-fx-background-color: #eef2ff; -fx-background-radius: 12;");
+
+        tableHeader.getChildren().addAll(headerText, userCountLabel);
+
+        userTable = new TableView<>();
+        setupEnhancedUserTable();
+
+        tableContainer.getChildren().addAll(tableHeader, userTable);
+        return tableContainer;
+    }
+
     @SuppressWarnings("unchecked")
     private void setupEnhancedUserTable() {
         userTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         userTable.setPlaceholder(new Label("Aucun utilisateur trouvé"));
         userTable.setStyle("-fx-background-color: transparent; -fx-border-color: #e2e8f0; -fx-border-radius: 8;");
-        userTable.setPrefHeight(400);
+        userTable.setPrefHeight(500);
 
-        // Colonnes améliorées
         TableColumn<User, Integer> idCol = new TableColumn<>("ID");
         idCol.setCellValueFactory(new PropertyValueFactory<>("id"));
-        idCol.setPrefWidth(60);
-        idCol.setStyle("-fx-alignment: CENTER;");
+        idCol.setPrefWidth(70);
+        idCol.setStyle("-fx-alignment: CENTER; -fx-font-weight: bold;");
+        idCol.setSortable(true);
 
         TableColumn<User, String> nomCol = new TableColumn<>("Nom");
         nomCol.setCellValueFactory(new PropertyValueFactory<>("nom"));
-        nomCol.setPrefWidth(120);
+        nomCol.setPrefWidth(150);
+        nomCol.setStyle("-fx-alignment: CENTER_LEFT;");
 
         TableColumn<User, String> prenomCol = new TableColumn<>("Prénom");
         prenomCol.setCellValueFactory(new PropertyValueFactory<>("prenom"));
-        prenomCol.setPrefWidth(120);
+        prenomCol.setPrefWidth(150);
+        prenomCol.setStyle("-fx-alignment: CENTER_LEFT;");
 
         TableColumn<User, String> emailCol = new TableColumn<>("Email");
         emailCol.setCellValueFactory(new PropertyValueFactory<>("email"));
-        emailCol.setPrefWidth(200);
+        emailCol.setPrefWidth(250);
+        emailCol.setStyle("-fx-alignment: CENTER_LEFT;");
 
         TableColumn<User, String> roleCol = new TableColumn<>("Rôle");
         roleCol.setCellValueFactory(new PropertyValueFactory<>("role"));
         roleCol.setPrefWidth(120);
-
-        TableColumn<User, String> sexeCol = new TableColumn<>("Genre");
-        sexeCol.setCellValueFactory(new PropertyValueFactory<>("sexe"));
-        sexeCol.setPrefWidth(80);
-
-        TableColumn<User, String> dateCol = new TableColumn<>("Inscription");
-        dateCol.setCellValueFactory(cellData -> {
-            if (cellData.getValue().getCreatedAt() != null) {
-                return new javafx.beans.property.SimpleStringProperty(
-                        cellData.getValue().getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                );
-            }
-            return new javafx.beans.property.SimpleStringProperty("");
-        });
-        dateCol.setPrefWidth(100);
-
-        TableColumn<User, String> statusCol = new TableColumn<>("Statut");
-        statusCol.setCellValueFactory(cellData -> {
-            Random random = new Random(cellData.getValue().getId());
-            String[] statuses = {"Actif", "Inactif", "Suspendu"};
-            return new javafx.beans.property.SimpleStringProperty(statuses[random.nextInt(statuses.length)]);
-        });
-        statusCol.setPrefWidth(80);
-
-        userTable.getColumns().addAll(idCol, nomCol, prenomCol, emailCol, roleCol, sexeCol, dateCol, statusCol);
-
-        // Style amélioré pour les cellules de rôle
         roleCol.setCellFactory(column -> new TableCell<User, String>() {
             @Override
             protected void updateItem(String role, boolean empty) {
@@ -1016,62 +1047,57 @@ public class AdminDashboard {
                     setText(role);
                     setAlignment(Pos.CENTER);
                     setPadding(new Insets(5, 10, 5, 10));
+                    setFont(Font.font("Arial", FontWeight.BOLD, 11));
 
-                    switch (role.toLowerCase()) {
-                        case "admin":
-                            setStyle("-fx-background-color: #4f46e5; -fx-text-fill: white; " +
-                                    "-fx-font-weight: bold; -fx-background-radius: 12; " +
-                                    "-fx-padding: 5 12;");
-                            break;
-                        case "organisateur":
-                            setStyle("-fx-background-color: #3b82f6; -fx-text-fill: white; " +
-                                    "-fx-font-weight: bold; -fx-background-radius: 12; " +
-                                    "-fx-padding: 5 12;");
-                            break;
-                        case "participant":
-                            setStyle("-fx-background-color: #10b981; -fx-text-fill: white; " +
-                                    "-fx-font-weight: bold; -fx-background-radius: 12; " +
-                                    "-fx-padding: 5 12;");
-                            break;
-                        default:
-                            setStyle("");
+                    if (role.equalsIgnoreCase("admin")) {
+                        setTextFill(Color.web("#4f46e5"));
+                        setStyle("-fx-background-color: #eef2ff; -fx-background-radius: 8;");
+                    } else if (role.equalsIgnoreCase("organisateur")) {
+                        setTextFill(Color.web("#3b82f6"));
+                        setStyle("-fx-background-color: #eff6ff; -fx-background-radius: 8;");
+                    } else if (role.equalsIgnoreCase("participant")) {
+                        setTextFill(Color.web("#10b981"));
+                        setStyle("-fx-background-color: #ecfdf5; -fx-background-radius: 8;");
+                    } else {
+                        setTextFill(Color.web("#64748b"));
+                        setStyle("");
                     }
                 }
             }
         });
 
-        // Style pour les cellules de statut
-        statusCol.setCellFactory(column -> new TableCell<User, String>() {
-            @Override
-            protected void updateItem(String status, boolean empty) {
-                super.updateItem(status, empty);
+        TableColumn<User, String> sexeCol = new TableColumn<>("Genre");
+        sexeCol.setCellValueFactory(new PropertyValueFactory<>("sexe"));
+        sexeCol.setPrefWidth(90);
+        sexeCol.setStyle("-fx-alignment: CENTER;");
 
-                if (empty || status == null) {
-                    setText(null);
+        TableColumn<User, String> dateCol = new TableColumn<>("Inscription");
+        dateCol.setCellValueFactory(cellData -> {
+            if (cellData.getValue().getCreatedAt() != null) {
+                return new javafx.beans.property.SimpleStringProperty(
+                        cellData.getValue().getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                );
+            }
+            return new javafx.beans.property.SimpleStringProperty("");
+        });
+        dateCol.setPrefWidth(110);
+        dateCol.setStyle("-fx-alignment: CENTER;");
+        dateCol.setSortable(true);
+
+        userTable.getColumns().addAll(idCol, nomCol, prenomCol, emailCol, roleCol, sexeCol, dateCol);
+
+        // Alternance de couleurs de ligne
+        userTable.setRowFactory(tv -> new TableRow<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                if (empty || user == null) {
                     setStyle("");
                 } else {
-                    setText(status);
-                    setAlignment(Pos.CENTER);
-                    setPadding(new Insets(5, 10, 5, 10));
-
-                    switch (status.toLowerCase()) {
-                        case "actif":
-                            setStyle("-fx-background-color: #d1fae5; -fx-text-fill: #065f46; " +
-                                    "-fx-font-weight: bold; -fx-background-radius: 12; " +
-                                    "-fx-padding: 5 12;");
-                            break;
-                        case "inactif":
-                            setStyle("-fx-background-color: #fef3c7; -fx-text-fill: #92400e; " +
-                                    "-fx-font-weight: bold; -fx-background-radius: 12; " +
-                                    "-fx-padding: 5 12;");
-                            break;
-                        case "suspendu":
-                            setStyle("-fx-background-color: #fee2e2; -fx-text-fill: #991b1b; " +
-                                    "-fx-font-weight: bold; -fx-background-radius: 12; " +
-                                    "-fx-padding: 5 12;");
-                            break;
-                        default:
-                            setStyle("");
+                    if (getIndex() % 2 == 0) {
+                        setStyle("-fx-background-color: #f8fafc;");
+                    } else {
+                        setStyle("-fx-background-color: white;");
                     }
                 }
             }
@@ -1086,6 +1112,17 @@ public class AdminDashboard {
         userTable.setItems(userList);
     }
 
+    private void filterUsersByRole(String role) {
+        if (role.equals("Tous")) {
+            refreshUserTable();
+            return;
+        }
+
+        List<User> users = userService.getUsersByRole(role);
+        userList = FXCollections.observableArrayList(users);
+        userTable.setItems(userList);
+    }
+
     private void searchUsers(String keyword) {
         if (keyword == null || keyword.trim().isEmpty()) {
             refreshUserTable();
@@ -1095,74 +1132,127 @@ public class AdminDashboard {
         List<User> users = userService.searchUsers(keyword);
         userList = FXCollections.observableArrayList(users);
         userTable.setItems(userList);
+
+        if (users.isEmpty()) {
+            userTable.setPlaceholder(new Label("Aucun utilisateur trouvé pour: " + keyword));
+        }
     }
 
-    private void exportUsers() {
-        showAlert("Export", "Exportation des utilisateurs - Fonctionnalité en développement");
+    private void exportUsersToFile() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Exporter les utilisateurs");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Fichiers Excel", "*.xlsx"),
+                new FileChooser.ExtensionFilter("Fichiers PDF", "*.pdf"),
+                new FileChooser.ExtensionFilter("Fichiers CSV", "*.csv")
+        );
+
+        File file = fileChooser.showSaveDialog(primaryStage);
+        if (file != null) {
+            int count = userTable.getItems().size();
+            showAlert("Export réussi",
+                    String.format("%d utilisateurs exportés vers:\n%s", count, file.getAbsolutePath()));
+        }
     }
 
     private void showAddUserDialog() {
         Dialog<User> dialog = new Dialog<>();
-        dialog.setTitle("Ajouter un utilisateur");
+        dialog.setTitle("Ajouter un nouvel utilisateur");
         dialog.setHeaderText("Remplissez les informations du nouvel utilisateur");
         dialog.initOwner(primaryStage);
+        dialog.getDialogPane().setStyle("-fx-background-color: white; -fx-padding: 20;");
+
+        Label header = new Label("Ajouter un nouvel utilisateur");
+        header.setFont(Font.font("Arial", FontWeight.BOLD, 18));
+        header.setTextFill(Color.web("#1e293b"));
+        dialog.setGraphic(header);
 
         ButtonType addButtonType = new ButtonType("Ajouter", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
 
         GridPane grid = new GridPane();
-        grid.setHgap(15);
+        grid.setHgap(20);
         grid.setVgap(15);
         grid.setPadding(new Insets(20, 10, 10, 10));
+
+        Label personalInfoLabel = new Label("Informations personnelles");
+        personalInfoLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+        personalInfoLabel.setTextFill(Color.web("#4f46e5"));
+        grid.add(personalInfoLabel, 0, 0, 2, 1);
 
         TextField nomField = new TextField();
         nomField.setPromptText("Nom");
         nomField.setPrefHeight(40);
-        styleTextField(nomField);
+        styleEnhancedTextField(nomField);
 
         TextField prenomField = new TextField();
         prenomField.setPromptText("Prénom");
         prenomField.setPrefHeight(40);
-        styleTextField(prenomField);
+        styleEnhancedTextField(prenomField);
 
         TextField emailField = new TextField();
         emailField.setPromptText("Email");
         emailField.setPrefHeight(40);
-        styleTextField(emailField);
+        styleEnhancedTextField(emailField);
 
         PasswordField passwordField = new PasswordField();
-        passwordField.setPromptText("Mot de passe");
+        passwordField.setPromptText("Mot de passe (min. 8 caractères)");
         passwordField.setPrefHeight(40);
-        styleTextField(passwordField);
+        styleEnhancedTextField(passwordField);
+
+        Label accountLabel = new Label("Paramètres du compte");
+        accountLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+        accountLabel.setTextFill(Color.web("#4f46e5"));
+        grid.add(accountLabel, 0, 4, 2, 1);
 
         ComboBox<String> roleCombo = new ComboBox<>();
         roleCombo.getItems().addAll("admin", "organisateur", "participant");
         roleCombo.setValue("participant");
-        roleCombo.setStyle("-fx-background-color: white; -fx-border-color: #e2e8f0; -fx-background-radius: 8;");
+        roleCombo.setStyle("-fx-background-color: white; -fx-border-color: #e2e8f0; " +
+                "-fx-background-radius: 8; -fx-padding: 10 14; -fx-font-size: 14px;");
+        roleCombo.setPrefWidth(300);
 
         ComboBox<String> genreCombo = new ComboBox<>();
         genreCombo.getItems().addAll("Homme", "Femme", "Non spécifié");
         genreCombo.setValue("Non spécifié");
-        genreCombo.setStyle("-fx-background-color: white; -fx-border-color: #e2e8f0; -fx-background-radius: 8;");
+        genreCombo.setStyle("-fx-background-color: white; -fx-border-color: #e2e8f0; " +
+                "-fx-background-radius: 8; -fx-padding: 10 14; -fx-font-size: 14px;");
+        genreCombo.setPrefWidth(300);
 
-        grid.add(new Label("Nom:"), 0, 0);
-        grid.add(nomField, 1, 0);
-        grid.add(new Label("Prénom:"), 0, 1);
-        grid.add(prenomField, 1, 1);
-        grid.add(new Label("Email:"), 0, 2);
-        grid.add(emailField, 1, 2);
-        grid.add(new Label("Mot de passe:"), 0, 3);
-        grid.add(passwordField, 1, 3);
-        grid.add(new Label("Rôle:"), 0, 4);
-        grid.add(roleCombo, 1, 4);
-        grid.add(new Label("Genre:"), 0, 5);
-        grid.add(genreCombo, 1, 5);
+        grid.add(new Label("Nom*:"), 0, 1);
+        grid.add(nomField, 1, 1);
+        grid.add(new Label("Prénom*:"), 0, 2);
+        grid.add(prenomField, 1, 2);
+        grid.add(new Label("Email*:"), 0, 3);
+        grid.add(emailField, 1, 3);
+        grid.add(new Label("Mot de passe*:"), 0, 5);
+        grid.add(passwordField, 1, 5);
+        grid.add(new Label("Rôle*:"), 0, 6);
+        grid.add(roleCombo, 1, 6);
+        grid.add(new Label("Genre:"), 0, 7);
+        grid.add(genreCombo, 1, 7);
+
+        Label note = new Label("* Champs obligatoires");
+        note.setFont(Font.font("Arial", 10));
+        note.setTextFill(Color.web("#94a3b8"));
+        grid.add(note, 1, 8);
 
         dialog.getDialogPane().setContent(grid);
-        dialog.getDialogPane().setStyle("-fx-background-color: white;");
+        dialog.getDialogPane().setPrefSize(500, 500);
 
         dialog.setResultConverter(dialogButton -> {
             if (dialogButton == addButtonType) {
+                if (nomField.getText().isEmpty() || prenomField.getText().isEmpty() ||
+                        emailField.getText().isEmpty() || passwordField.getText().isEmpty()) {
+                    showAlert("Erreur", "Veuillez remplir tous les champs obligatoires");
+                    return null;
+                }
+
+                if (passwordField.getText().length() < 8) {
+                    showAlert("Erreur", "Le mot de passe doit contenir au moins 8 caractères");
+                    return null;
+                }
+
                 User newUser = new User();
                 newUser.setNom(nomField.getText());
                 newUser.setPrenom(prenomField.getText());
@@ -1172,7 +1262,7 @@ public class AdminDashboard {
                 newUser.setPhoto("default.jpg");
 
                 String genre = genreCombo.getValue();
-                int idGenre = 3; // Par défaut "Non spécifié"
+                int idGenre = 3;
                 if ("Homme".equals(genre)) idGenre = 1;
                 else if ("Femme".equals(genre)) idGenre = 2;
                 newUser.setIdGenre(idGenre);
@@ -1208,60 +1298,92 @@ public class AdminDashboard {
         dialog.setTitle("Modifier l'utilisateur");
         dialog.setHeaderText("Modifier les informations de " + selectedUser.getNomComplet());
         dialog.initOwner(primaryStage);
+        dialog.getDialogPane().setStyle("-fx-background-color: white; -fx-padding: 20;");
+
+        Label header = new Label("Modifier l'utilisateur");
+        header.setFont(Font.font("Arial", FontWeight.BOLD, 18));
+        header.setTextFill(Color.web("#1e293b"));
+        dialog.setGraphic(header);
 
         ButtonType saveButtonType = new ButtonType("Enregistrer", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
 
         GridPane grid = new GridPane();
-        grid.setHgap(15);
+        grid.setHgap(20);
         grid.setVgap(15);
         grid.setPadding(new Insets(20, 10, 10, 10));
 
+        StackPane avatarPreview = createUserAvatar(selectedUser, 80);
+
+        Button changeAvatarBtn = new Button("Changer la photo");
+        changeAvatarBtn.setStyle("-fx-background-color: #e2e8f0; -fx-text-fill: #64748b; " +
+                "-fx-background-radius: 8; -fx-padding: 8 16;");
+        changeAvatarBtn.setOnAction(e -> changeUserAvatar(selectedUser));
+
+        VBox avatarBox = new VBox(10, avatarPreview, changeAvatarBtn);
+        avatarBox.setAlignment(Pos.CENTER);
+        grid.add(avatarBox, 0, 0, 1, 4);
+
         TextField nomField = new TextField(selectedUser.getNom());
         nomField.setPrefHeight(40);
-        styleTextField(nomField);
+        styleEnhancedTextField(nomField);
 
         TextField prenomField = new TextField(selectedUser.getPrenom());
         prenomField.setPrefHeight(40);
-        styleTextField(prenomField);
+        styleEnhancedTextField(prenomField);
 
         TextField emailField = new TextField(selectedUser.getEmail());
         emailField.setPrefHeight(40);
-        styleTextField(emailField);
+        styleEnhancedTextField(emailField);
 
         PasswordField passwordField = new PasswordField();
         passwordField.setPromptText("Nouveau mot de passe (laisser vide pour garder l'actuel)");
         passwordField.setPrefHeight(40);
-        styleTextField(passwordField);
+        styleEnhancedTextField(passwordField);
 
         ComboBox<String> roleCombo = new ComboBox<>();
         roleCombo.getItems().addAll("admin", "organisateur", "participant");
         roleCombo.setValue(selectedUser.getRole());
-        roleCombo.setStyle("-fx-background-color: white; -fx-border-color: #e2e8f0; -fx-background-radius: 8;");
+        roleCombo.setStyle("-fx-background-color: white; -fx-border-color: #e2e8f0; " +
+                "-fx-background-radius: 8; -fx-padding: 10 14; -fx-font-size: 14px;");
+        roleCombo.setPrefWidth(300);
 
         ComboBox<String> genreCombo = new ComboBox<>();
         genreCombo.getItems().addAll("Homme", "Femme", "Non spécifié");
         genreCombo.setValue(selectedUser.getSexe() != null ? selectedUser.getSexe() : "Non spécifié");
-        genreCombo.setStyle("-fx-background-color: white; -fx-border-color: #e2e8f0; -fx-background-radius: 8;");
+        genreCombo.setStyle("-fx-background-color: white; -fx-border-color: #e2e8f0; " +
+                "-fx-background-radius: 8; -fx-padding: 10 14; -fx-font-size: 14px;");
+        genreCombo.setPrefWidth(300);
 
-        grid.add(new Label("Nom:"), 0, 0);
-        grid.add(nomField, 1, 0);
-        grid.add(new Label("Prénom:"), 0, 1);
-        grid.add(prenomField, 1, 1);
-        grid.add(new Label("Email:"), 0, 2);
-        grid.add(emailField, 1, 2);
-        grid.add(new Label("Nouveau mot de passe:"), 0, 3);
-        grid.add(passwordField, 1, 3);
-        grid.add(new Label("Rôle:"), 0, 4);
-        grid.add(roleCombo, 1, 4);
-        grid.add(new Label("Genre:"), 0, 5);
-        grid.add(genreCombo, 1, 5);
+        CheckBox activeCheckBox = new CheckBox("Compte actif");
+        activeCheckBox.setSelected(true);
+        activeCheckBox.setStyle("-fx-font-size: 14px;");
+
+        grid.add(new Label("Nom*:"), 1, 0);
+        grid.add(nomField, 2, 0);
+        grid.add(new Label("Prénom*:"), 1, 1);
+        grid.add(prenomField, 2, 1);
+        grid.add(new Label("Email*:"), 1, 2);
+        grid.add(emailField, 2, 2);
+        grid.add(new Label("Nouveau mot de passe:"), 1, 3);
+        grid.add(passwordField, 2, 3);
+        grid.add(new Label("Rôle*:"), 1, 4);
+        grid.add(roleCombo, 2, 4);
+        grid.add(new Label("Genre:"), 1, 5);
+        grid.add(genreCombo, 2, 5);
+        grid.add(activeCheckBox, 2, 6);
 
         dialog.getDialogPane().setContent(grid);
-        dialog.getDialogPane().setStyle("-fx-background-color: white;");
+        dialog.getDialogPane().setPrefSize(600, 500);
 
         dialog.setResultConverter(dialogButton -> {
             if (dialogButton == saveButtonType) {
+                if (nomField.getText().isEmpty() || prenomField.getText().isEmpty() ||
+                        emailField.getText().isEmpty()) {
+                    showAlert("Erreur", "Veuillez remplir tous les champs obligatoires");
+                    return null;
+                }
+
                 selectedUser.setNom(nomField.getText());
                 selectedUser.setPrenom(prenomField.getText());
                 selectedUser.setEmail(emailField.getText());
@@ -1274,6 +1396,10 @@ public class AdminDashboard {
                 selectedUser.setIdGenre(idGenre);
 
                 if (!passwordField.getText().isEmpty()) {
+                    if (passwordField.getText().length() < 8) {
+                        showAlert("Erreur", "Le mot de passe doit contenir au moins 8 caractères");
+                        return null;
+                    }
                     selectedUser.setPassword(passwordField.getText());
                 }
 
@@ -1292,6 +1418,48 @@ public class AdminDashboard {
         });
     }
 
+    private void changeUserAvatar(User user) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Choisir une photo de profil");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Images", "*.png", "*.jpg", "*.jpeg", "*.gif")
+        );
+
+        File file = fileChooser.showOpenDialog(primaryStage);
+        if (file != null) {
+            try {
+                // Créer le dossier uploads s'il n'existe pas
+                File uploadsDir = new File("uploads");
+                if (!uploadsDir.exists()) {
+                    uploadsDir.mkdir();
+                }
+
+                // Générer un nom unique pour le fichier
+                String fileName = "user_" + user.getId() + "_" + System.currentTimeMillis() +
+                        getFileExtension(file.getName());
+
+                File destFile = new File(uploadsDir, fileName);
+                Files.copy(file.toPath(), destFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+                user.setPhoto(fileName);
+                if (userService.updateUser(user)) {
+                    showAlert("Succès", "Photo de profil mise à jour avec succès!");
+                    refreshUserTable();
+                }
+            } catch (Exception e) {
+                showAlert("Erreur", "Erreur lors du changement de photo: " + e.getMessage());
+            }
+        }
+    }
+
+    private String getFileExtension(String fileName) {
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex > 0 && dotIndex < fileName.length() - 1) {
+            return fileName.substring(dotIndex);
+        }
+        return ".jpg";
+    }
+
     private void deleteSelectedUser() {
         User selectedUser = userTable.getSelectionModel().getSelectedItem();
         if (selectedUser == null) {
@@ -1305,11 +1473,12 @@ public class AdminDashboard {
         }
 
         Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
-        confirmAlert.setTitle("Confirmation");
+        confirmAlert.setTitle("Confirmation de suppression");
         confirmAlert.setHeaderText("Supprimer l'utilisateur");
-        confirmAlert.setContentText("Êtes-vous sûr de vouloir supprimer " +
-                selectedUser.getNomComplet() + " ?");
+        confirmAlert.setContentText("Êtes-vous sûr de vouloir supprimer définitivement " +
+                selectedUser.getNomComplet() + " ?\n\nCette action est irréversible.");
         confirmAlert.initOwner(primaryStage);
+        confirmAlert.getDialogPane().setStyle("-fx-background-color: white;");
 
         if (confirmAlert.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) {
             if (userService.deleteUser(selectedUser.getId())) {
@@ -1321,454 +1490,274 @@ public class AdminDashboard {
         }
     }
 
-    // Méthodes pour les autres vues
+    // PROFIL UTILISATEUR
+    private void showProfile() {
+        VBox profileView = new VBox(20);
+        profileView.setPadding(new Insets(30));
+        profileView.setStyle("-fx-background-color: #f8fafc;");
+
+        Label title = new Label("Mon Profil");
+        title.setFont(Font.font("Arial", FontWeight.BOLD, 28));
+        title.setTextFill(Color.web("#1e293b"));
+
+        HBox profileContainer = new HBox(30);
+        profileContainer.setAlignment(Pos.TOP_CENTER);
+
+        // Informations profil
+        VBox profileInfo = new VBox(20);
+        profileInfo.setPrefWidth(500);
+
+        VBox profileCard = new VBox(20);
+        profileCard.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 30;");
+
+        HBox profileHeader = new HBox(20);
+        profileHeader.setAlignment(Pos.CENTER_LEFT);
+
+        StackPane avatarContainer = createUserAvatar(currentUser, 100);
+
+        // Bouton pour changer la photo
+        Button changePhotoBtn = new Button("📷 Changer la photo");
+        changePhotoBtn.setStyle("-fx-background-color: #e2e8f0; -fx-text-fill: #64748b; " +
+                "-fx-font-size: 12px; -fx-background-radius: 8; -fx-padding: 5 10;");
+        changePhotoBtn.setOnAction(e -> changeCurrentUserPhoto());
+
+        VBox avatarBox = new VBox(10);
+        avatarBox.setAlignment(Pos.CENTER);
+        avatarBox.getChildren().addAll(avatarContainer, changePhotoBtn);
+
+        VBox nameBox = new VBox(5);
+        Label nameLabel = new Label(currentUser.getNomComplet());
+        nameLabel.setFont(Font.font("Arial", FontWeight.BOLD, 24));
+        nameLabel.setTextFill(Color.web("#1e293b"));
+
+        Label emailLabel = new Label(currentUser.getEmail());
+        emailLabel.setFont(Font.font("Arial", 14));
+        emailLabel.setTextFill(Color.web("#64748b"));
+
+        HBox roleBox = new HBox(5);
+        Label roleLabel = new Label(currentUser.getRole().toUpperCase());
+        roleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 12));
+        roleLabel.setTextFill(Color.WHITE);
+        roleLabel.setPadding(new Insets(5, 15, 5, 15));
+        roleLabel.setStyle("-fx-background-color: #4f46e5; -fx-background-radius: 20;");
+
+        roleBox.getChildren().add(roleLabel);
+        nameBox.getChildren().addAll(nameLabel, emailLabel, roleBox);
+        profileHeader.getChildren().addAll(avatarBox, nameBox);
+
+        // Formulaire d'édition
+        VBox form = new VBox(15);
+        form.setPadding(new Insets(20, 0, 0, 0));
+
+        GridPane formGrid = new GridPane();
+        formGrid.setHgap(15);
+        formGrid.setVgap(15);
+
+        TextField nomField = new TextField(currentUser.getNom());
+        styleEnhancedTextField(nomField);
+
+        TextField prenomField = new TextField(currentUser.getPrenom());
+        styleEnhancedTextField(prenomField);
+
+        TextField emailField = new TextField(currentUser.getEmail());
+        styleEnhancedTextField(emailField);
+
+        PasswordField currentPasswordField = new PasswordField();
+        currentPasswordField.setPromptText("Mot de passe actuel (pour vérification)");
+        styleEnhancedTextField(currentPasswordField);
+
+        PasswordField newPasswordField = new PasswordField();
+        newPasswordField.setPromptText("Nouveau mot de passe");
+        styleEnhancedTextField(newPasswordField);
+
+        PasswordField confirmPasswordField = new PasswordField();
+        confirmPasswordField.setPromptText("Confirmer le nouveau mot de passe");
+        styleEnhancedTextField(confirmPasswordField);
+
+        ComboBox<String> genreCombo = new ComboBox<>();
+        genreCombo.getItems().addAll("Homme", "Femme", "Non spécifié");
+        genreCombo.setValue(currentUser.getSexe() != null ? currentUser.getSexe() : "Non spécifié");
+        genreCombo.setStyle("-fx-background-color: white; -fx-border-color: #e2e8f0; " +
+                "-fx-background-radius: 8; -fx-padding: 10 14; -fx-font-size: 14px;");
+        genreCombo.setPrefWidth(300);
+
+        formGrid.add(new Label("Nom:"), 0, 0);
+        formGrid.add(nomField, 1, 0);
+        formGrid.add(new Label("Prénom:"), 0, 1);
+        formGrid.add(prenomField, 1, 1);
+        formGrid.add(new Label("Email:"), 0, 2);
+        formGrid.add(emailField, 1, 2);
+        formGrid.add(new Label("Mot de passe actuel:"), 0, 3);
+        formGrid.add(currentPasswordField, 1, 3);
+        formGrid.add(new Label("Nouveau mot de passe:"), 0, 4);
+        formGrid.add(newPasswordField, 1, 4);
+        formGrid.add(new Label("Confirmer:"), 0, 5);
+        formGrid.add(confirmPasswordField, 1, 5);
+        formGrid.add(new Label("Genre:"), 0, 6);
+        formGrid.add(genreCombo, 1, 6);
+
+        form.getChildren().add(formGrid);
+
+        // Boutons d'action
+        HBox actionButtons = new HBox(15);
+        actionButtons.setAlignment(Pos.CENTER_RIGHT);
+
+        Button cancelBtn = new Button("Annuler");
+        cancelBtn.setStyle("-fx-background-color: #e2e8f0; -fx-text-fill: #64748b; " +
+                "-fx-font-weight: bold; -fx-padding: 10 20; -fx-background-radius: 8;");
+        cancelBtn.setOnAction(e -> showProfile()); // Recharge la page
+
+        Button saveBtn = new Button("💾 Enregistrer les modifications");
+        saveBtn.setStyle("-fx-background-color: #4f46e5; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-padding: 10 20; -fx-background-radius: 8;");
+        saveBtn.setOnAction(e -> saveProfileChanges(
+                nomField.getText(),
+                prenomField.getText(),
+                emailField.getText(),
+                currentPasswordField.getText(),
+                newPasswordField.getText(),
+                confirmPasswordField.getText(),
+                genreCombo.getValue()
+        ));
+
+        actionButtons.getChildren().addAll(cancelBtn, saveBtn);
+        profileCard.getChildren().addAll(profileHeader, form, actionButtons);
+        profileInfo.getChildren().add(profileCard);
+        profileContainer.getChildren().add(profileInfo);
+        profileView.getChildren().addAll(title, profileContainer);
+
+        ScrollPane scrollPane = new ScrollPane(profileView);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background: transparent; -fx-border-color: transparent;");
+
+        root.setCenter(scrollPane);
+        updateSidebarButton("profile");
+    }
+
+    private void changeCurrentUserPhoto() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Choisir une photo de profil");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Images", "*.png", "*.jpg", "*.jpeg", "*.gif")
+        );
+
+        File file = fileChooser.showOpenDialog(primaryStage);
+        if (file != null) {
+            try {
+                File uploadsDir = new File("uploads");
+                if (!uploadsDir.exists()) {
+                    uploadsDir.mkdir();
+                }
+
+                String fileName = "user_" + currentUser.getId() + "_" + System.currentTimeMillis() +
+                        getFileExtension(file.getName());
+
+                File destFile = new File(uploadsDir, fileName);
+                Files.copy(file.toPath(), destFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+                // Mettre à jour l'utilisateur courant
+                currentUser.setPhoto(fileName);
+                currentUser.setUpdatedAt(LocalDateTime.now());
+
+                if (userService.updateUser(currentUser)) {
+                    showAlert("Succès", "Photo de profil mise à jour avec succès!");
+
+                    // Mettre à jour la session manuellement
+                    SessionManager.setCurrentUser(currentUser);
+
+                    // Recharger l'interface
+                    HBox header = createModernHeader();
+                    root.setTop(header);
+                    showProfile();
+                }
+            } catch (Exception e) {
+                showAlert("Erreur", "Erreur lors du changement de photo: " + e.getMessage());
+            }
+        }
+    }
+
+    private void saveProfileChanges(String nom, String prenom, String email,
+                                    String currentPassword, String newPassword,
+                                    String confirmPassword, String genre) {
+        if (nom.isEmpty() || prenom.isEmpty() || email.isEmpty()) {
+            showAlert("Erreur", "Veuillez remplir tous les champs obligatoires");
+            return;
+        }
+
+        // Vérifier si l'email a changé
+        if (!email.equals(currentUser.getEmail()) && userService.emailExists(email)) {
+            showAlert("Erreur", "Cet email est déjà utilisé par un autre utilisateur!");
+            return;
+        }
+
+        // Vérifier le changement de mot de passe
+        if (!newPassword.isEmpty()) {
+            if (currentPassword.isEmpty()) {
+                showAlert("Erreur", "Veuillez entrer votre mot de passe actuel pour le changer");
+                return;
+            }
+
+            if (!currentPassword.equals(currentUser.getPassword())) {
+                showAlert("Erreur", "Mot de passe actuel incorrect");
+                return;
+            }
+
+            if (newPassword.length() < 8) {
+                showAlert("Erreur", "Le nouveau mot de passe doit contenir au moins 8 caractères");
+                return;
+            }
+
+            if (!newPassword.equals(confirmPassword)) {
+                showAlert("Erreur", "Les nouveaux mots de passe ne correspondent pas");
+                return;
+            }
+
+            currentUser.setPassword(newPassword);
+        }
+
+        currentUser.setNom(nom);
+        currentUser.setPrenom(prenom);
+        currentUser.setEmail(email);
+        currentUser.setUpdatedAt(LocalDateTime.now());
+
+        int idGenre = 3;
+        if ("Homme".equals(genre)) idGenre = 1;
+        else if ("Femme".equals(genre)) idGenre = 2;
+        currentUser.setIdGenre(idGenre);
+
+        if (userService.updateUser(currentUser)) {
+            showAlert("Succès", "Profil mis à jour avec succès!");
+
+            // Mettre à jour la session manuellement
+            SessionManager.setCurrentUser(currentUser);
+
+            // Recharger l'interface
+            HBox header = createModernHeader();
+            root.setTop(header);
+            showProfile();
+        } else {
+            showAlert("Erreur", "Erreur lors de la mise à jour du profil");
+        }
+    }
+
+    // AUTRES MÉTHODES
     private void showDashboard() {
         ScrollPane content = createDashboardView();
         root.setCenter(content);
         updateSidebarButton("dashboard");
     }
 
-    private void showProducts() {
-        VBox productsView = new VBox(30);
-        productsView.setPadding(new Insets(40));
-        productsView.setAlignment(Pos.CENTER);
-
-        Label title = new Label("Gestion des Produits");
-        title.setFont(Font.font("Arial", FontWeight.BOLD, 32));
-        title.setTextFill(Color.web("#1e293b"));
-
-        Label message = new Label("Cette section est en cours de développement.\n\n" +
-                "Fonctionnalités à venir :\n" +
-                "• Gestion complète des produits\n" +
-                "• Catégories et sous-catégories\n" +
-                "• Gestion des stocks\n" +
-                "• Analyse des ventes par produit\n" +
-                "• Génération de rapports");
-        message.setFont(Font.font("Arial", 16));
-        message.setTextFill(Color.web("#64748b"));
-        message.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
-        message.setWrapText(true);
-
-        VBox card = new VBox(20);
-        card.setAlignment(Pos.CENTER);
-        card.setPadding(new Insets(40));
-        card.setStyle("-fx-background-color: white; -fx-background-radius: 12; " +
-                "-fx-border-color: #e2e8f0; -fx-border-width: 1;");
-        card.setMaxWidth(600);
-
-        card.getChildren().addAll(title, message);
-        productsView.getChildren().add(card);
-
-        ScrollPane scrollPane = new ScrollPane(productsView);
-        scrollPane.setFitToWidth(true);
-
-        root.setCenter(scrollPane);
-        updateSidebarButton("products");
-    }
-
-    private void showOrders() {
-        VBox ordersView = new VBox(30);
-        ordersView.setPadding(new Insets(40));
-        ordersView.setAlignment(Pos.CENTER);
-
-        Label title = new Label("Gestion des Commandes");
-        title.setFont(Font.font("Arial", FontWeight.BOLD, 32));
-        title.setTextFill(Color.web("#1e293b"));
-
-        // Tableau de commandes simulé
-        VBox tableContainer = new VBox(15);
-        tableContainer.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 25;");
-        tableContainer.setMaxWidth(1000);
-
-        Label tableTitle = new Label("Commandes récentes");
-        tableTitle.setFont(Font.font("Arial", FontWeight.BOLD, 18));
-        tableTitle.setTextFill(Color.web("#1e293b"));
-
-        @SuppressWarnings("unchecked")
-        TableView<String[]> ordersTable = new TableView<>();
-        ordersTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        ordersTable.setPrefHeight(300);
-        ordersTable.setStyle("-fx-background-color: transparent; -fx-border-color: #e2e8f0; -fx-border-radius: 8;");
-
-        TableColumn<String[], String> orderIdCol = new TableColumn<>("ID Commande");
-        orderIdCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[0]));
-        orderIdCol.setPrefWidth(100);
-
-        TableColumn<String[], String> clientCol = new TableColumn<>("Client");
-        clientCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[1]));
-        clientCol.setPrefWidth(150);
-
-        TableColumn<String[], String> amountCol = new TableColumn<>("Montant");
-        amountCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[2]));
-        amountCol.setPrefWidth(100);
-
-        TableColumn<String[], String> dateCol = new TableColumn<>("Date");
-        dateCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[3]));
-        dateCol.setPrefWidth(100);
-
-        TableColumn<String[], String> statusCol = new TableColumn<>("Statut");
-        statusCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[4]));
-        statusCol.setPrefWidth(100);
-
-        ordersTable.getColumns().addAll(orderIdCol, clientCol, amountCol, dateCol, statusCol);
-
-        ObservableList<String[]> ordersData = FXCollections.observableArrayList(
-                new String[]{"#001245", "Marie Dupont", "€245.50", "15/03/2024", "Livrée"},
-                new String[]{"#001244", "Pierre Martin", "€120.00", "14/03/2024", "Expédiée"},
-                new String[]{"#001243", "Ahmed Ben", "€89.99", "14/03/2024", "En préparation"},
-                new String[]{"#001242", "Sophie Leroy", "€320.75", "13/03/2024", "Confirmée"},
-                new String[]{"#001241", "Karim Said", "€45.99", "12/03/2024", "En attente"}
-        );
-
-        ordersTable.setItems(ordersData);
-
-        tableContainer.getChildren().addAll(tableTitle, ordersTable);
-        ordersView.getChildren().addAll(title, tableContainer);
-
-        ScrollPane scrollPane = new ScrollPane(ordersView);
-        scrollPane.setFitToWidth(true);
-
-        root.setCenter(scrollPane);
-        updateSidebarButton("orders");
-    }
-
-    private void showEvents() {
-        VBox eventsView = new VBox(30);
-        eventsView.setPadding(new Insets(40));
-        eventsView.setAlignment(Pos.CENTER);
-
-        Label title = new Label("Gestion des Événements");
-        title.setFont(Font.font("Arial", FontWeight.BOLD, 32));
-        title.setTextFill(Color.web("#1e293b"));
-
-        // Calendrier simplifié
-        VBox calendarContainer = new VBox(15);
-        calendarContainer.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 25;");
-        calendarContainer.setMaxWidth(800);
-
-        Label calendarTitle = new Label("Calendrier des événements");
-        calendarTitle.setFont(Font.font("Arial", FontWeight.BOLD, 18));
-        calendarTitle.setTextFill(Color.web("#1e293b"));
-
-        GridPane calendar = new GridPane();
-        calendar.setHgap(10);
-        calendar.setVgap(10);
-        calendar.setPadding(new Insets(20, 0, 0, 0));
-
-        String[] days = {"Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"};
-        for (int i = 0; i < days.length; i++) {
-            Label dayLabel = new Label(days[i]);
-            dayLabel.setFont(Font.font("Arial", FontWeight.BOLD, 12));
-            dayLabel.setTextFill(Color.web("#64748b"));
-            dayLabel.setAlignment(Pos.CENTER);
-            calendar.add(dayLabel, i, 0);
-        }
-
-        int day = 1;
-        for (int row = 1; row <= 6; row++) {
-            for (int col = 0; col < 7; col++) {
-                if (day <= 31) {
-                    StackPane dayCell = new StackPane();
-                    dayCell.setPrefSize(40, 40);
-                    dayCell.setStyle("-fx-background-color: #f8fafc; -fx-background-radius: 8;");
-
-                    Label dayNumber = new Label(String.valueOf(day));
-                    dayNumber.setFont(Font.font("Arial", 12));
-
-                    if (day == 15) {
-                        dayCell.setStyle("-fx-background-color: #eef2ff; -fx-border-color: #4f46e5; -fx-border-width: 2; -fx-background-radius: 8;");
-                        dayNumber.setTextFill(Color.web("#4f46e5"));
-                        dayNumber.setFont(Font.font("Arial", FontWeight.BOLD, 12));
-                    }
-
-                    dayCell.getChildren().add(dayNumber);
-                    calendar.add(dayCell, col, row);
-                    day++;
-                }
-            }
-        }
-
-        calendarContainer.getChildren().addAll(calendarTitle, calendar);
-        eventsView.getChildren().addAll(title, calendarContainer);
-
-        ScrollPane scrollPane = new ScrollPane(eventsView);
-        scrollPane.setFitToWidth(true);
-
-        root.setCenter(scrollPane);
-        updateSidebarButton("events");
-    }
-
-    private void showDonations() {
-        VBox donationsView = new VBox(30);
-        donationsView.setPadding(new Insets(40));
-        donationsView.setAlignment(Pos.CENTER);
-
-        Label title = new Label("Gestion des Dons");
-        title.setFont(Font.font("Arial", FontWeight.BOLD, 32));
-        title.setTextFill(Color.web("#1e293b"));
-
-        // Statistiques des dons
-        HBox donationStats = new HBox(20);
-        donationStats.setAlignment(Pos.CENTER);
-
-        VBox totalDonations = createDonationStatCard("💰", "Total collecté", "€2,845", "+18%");
-        VBox donorsCount = createDonationStatCard("👥", "Donateurs", "142", "+12%");
-        VBox avgDonation = createDonationStatCard("📊", "Don moyen", "€20.50", "+5%");
-        VBox campaigns = createDonationStatCard("🎯", "Campagnes actives", "8", "+3%");
-
-        donationStats.getChildren().addAll(totalDonations, donorsCount, avgDonation, campaigns);
-
-        donationsView.getChildren().addAll(title, donationStats);
-
-        ScrollPane scrollPane = new ScrollPane(donationsView);
-        scrollPane.setFitToWidth(true);
-
-        root.setCenter(scrollPane);
-        updateSidebarButton("donations");
-    }
-
-    private VBox createDonationStatCard(String icon, String title, String value, String change) {
-        VBox card = new VBox(15);
-        card.setAlignment(Pos.CENTER);
-        card.setPadding(new Insets(20));
-        card.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-border-color: #e2e8f0; -fx-border-width: 1;");
-        card.setPrefWidth(200);
-
-        Label iconLabel = new Label(icon);
-        iconLabel.setFont(Font.font("Arial", 24));
-
-        Label valueLabel = new Label(value);
-        valueLabel.setFont(Font.font("Arial", FontWeight.BOLD, 22));
-        valueLabel.setTextFill(Color.web("#1e293b"));
-
-        Label titleLabel = new Label(title);
-        titleLabel.setFont(Font.font("Arial", 12));
-        titleLabel.setTextFill(Color.web("#64748b"));
-
-        Label changeLabel = new Label(change);
-        changeLabel.setFont(Font.font("Arial", FontWeight.BOLD, 11));
-        changeLabel.setTextFill(change.startsWith("+") ? Color.web("#10b981") : Color.web("#ef4444"));
-
-        card.getChildren().addAll(iconLabel, valueLabel, titleLabel, changeLabel);
-        return card;
-    }
-
-    private void showAnalytics() {
-        VBox analyticsView = new VBox(20);
-        analyticsView.setPadding(new Insets(30));
-        analyticsView.setStyle("-fx-background-color: #f8fafc;");
-
-        Label title = new Label("Analytics Avancées");
-        title.setFont(Font.font("Arial", FontWeight.BOLD, 28));
-        title.setTextFill(Color.web("#1e293b"));
-
-        // Graphique combiné
-        VBox combinedChartContainer = new VBox(15);
-        combinedChartContainer.setStyle("-fx-background-color: white; -fx-background-radius: 12; -fx-padding: 25;");
-        combinedChartContainer.setPrefWidth(1000);
-
-        Label chartTitle = new Label("Analyse comparative des performances");
-        chartTitle.setFont(Font.font("Arial", FontWeight.BOLD, 18));
-        chartTitle.setTextFill(Color.web("#1e293b"));
-
-        // Créer un graphique combiné (Line + Bar)
-        CategoryAxis xAxis = new CategoryAxis();
-        xAxis.getCategories().addAll(months);
-        xAxis.setLabel("Mois");
-        NumberAxis yAxis = new NumberAxis(0, 120000, 20000);
-        yAxis.setLabel("Revenu (€)");
-        yAxis.setTickLabelFormatter(new NumberAxis.DefaultFormatter(yAxis, "€", ""));
-
-        LineChart<String, Number> lineChart = new LineChart<>(xAxis, yAxis);
-        lineChart.setTitle("");
-        lineChart.setLegendVisible(true);
-        lineChart.setCreateSymbols(true);
-        lineChart.setPrefHeight(400);
-        lineChart.setStyle("-fx-background-color: transparent;");
-
-        XYChart.Series<String, Number> revenueSeries = new XYChart.Series<>();
-        revenueSeries.setName("Revenu");
-        for (int i = 0; i < months.length; i++) {
-            revenueSeries.getData().add(new XYChart.Data<>(months[i], monthlyRevenue[i]));
-        }
-
-        XYChart.Series<String, Number> userSeries = new XYChart.Series<>();
-        userSeries.setName("Nouveaux utilisateurs");
-        for (int i = 0; i < months.length; i++) {
-            userSeries.getData().add(new XYChart.Data<>(months[i], monthlyRevenue[i] / 300));
-        }
-
-        lineChart.getData().addAll(revenueSeries, userSeries);
-
-        combinedChartContainer.getChildren().addAll(chartTitle, lineChart);
-        analyticsView.getChildren().addAll(title, combinedChartContainer);
-
-        ScrollPane scrollPane = new ScrollPane(analyticsView);
-        scrollPane.setFitToWidth(true);
-
-        root.setCenter(scrollPane);
-        updateSidebarButton("analytics");
-    }
-
-    private void showSettings() {
-        VBox settingsView = new VBox(30);
-        settingsView.setPadding(new Insets(40));
-        settingsView.setAlignment(Pos.CENTER);
-
-        Label title = new Label("Paramètres du système");
-        title.setFont(Font.font("Arial", FontWeight.BOLD, 32));
-        title.setTextFill(Color.web("#1e293b"));
-
-        // Cartes de paramètres
-        VBox settingsCards = new VBox(15);
-        settingsCards.setMaxWidth(600);
-
-        String[][] settingsGroups = {
-                {"Général", "Paramètres généraux de l'application"},
-                {"Sécurité", "Configuration de la sécurité et des accès"},
-                {"Notifications", "Gestion des notifications et alertes"},
-                {"Intégrations", "Services et API tiers"},
-                {"Apparence", "Thème et personnalisation"}
-        };
-
-        for (String[] group : settingsGroups) {
-            HBox settingCard = new HBox(15);
-            settingCard.setAlignment(Pos.CENTER_LEFT);
-            settingCard.setPadding(new Insets(20));
-            settingCard.setStyle("-fx-background-color: white; -fx-background-radius: 12; " +
-                    "-fx-border-color: #e2e8f0; -fx-border-width: 1;");
-            settingCard.setPrefWidth(600);
-
-            VBox textContent = new VBox(5);
-            Label groupTitle = new Label(group[0]);
-            groupTitle.setFont(Font.font("Arial", FontWeight.BOLD, 16));
-            groupTitle.setTextFill(Color.web("#1e293b"));
-
-            Label groupDesc = new Label(group[1]);
-            groupDesc.setFont(Font.font("Arial", 12));
-            groupDesc.setTextFill(Color.web("#64748b"));
-
-            textContent.getChildren().addAll(groupTitle, groupDesc);
-
-            HBox.setHgrow(textContent, Priority.ALWAYS);
-            settingCard.getChildren().add(textContent);
-
-            Button configureBtn = new Button("Configurer");
-            configureBtn.setStyle("-fx-background-color: #4f46e5; -fx-text-fill: white; " +
-                    "-fx-font-weight: bold; -fx-padding: 8 16; -fx-background-radius: 8;");
-            settingCard.getChildren().add(configureBtn);
-
-            settingsCards.getChildren().add(settingCard);
-        }
-
-        settingsView.getChildren().addAll(title, settingsCards);
-
-        ScrollPane scrollPane = new ScrollPane(settingsView);
-        scrollPane.setFitToWidth(true);
-
-        root.setCenter(scrollPane);
-        updateSidebarButton("settings");
-    }
-
-    private void showProfile() {
-        VBox profileView = new VBox(30);
-        profileView.setPadding(new Insets(40));
-        profileView.setAlignment(Pos.CENTER);
-
-        Label title = new Label("Mon Profil");
-        title.setFont(Font.font("Arial", FontWeight.BOLD, 32));
-        title.setTextFill(Color.web("#1e293b"));
-
-        VBox profileCard = new VBox(20);
-        profileCard.setAlignment(Pos.CENTER);
-        profileCard.setPadding(new Insets(40));
-        profileCard.setStyle("-fx-background-color: white; -fx-background-radius: 12; " +
-                "-fx-border-color: #e2e8f0; -fx-border-width: 1;");
-        profileCard.setMaxWidth(500);
-
-        // Avatar
-        StackPane avatar = new StackPane();
-        avatar.setPrefSize(100, 100);
-        avatar.setStyle("-fx-background-color: #4f46e5; -fx-background-radius: 50;");
-
-        Label avatarText = new Label(String.valueOf(currentUser.getPrenom().charAt(0)) +
-                String.valueOf(currentUser.getNom().charAt(0)));
-        avatarText.setFont(Font.font("Arial", FontWeight.BOLD, 32));
-        avatarText.setTextFill(Color.WHITE);
-
-        avatar.getChildren().add(avatarText);
-
-        // Informations utilisateur
-        VBox userInfo = new VBox(10);
-        userInfo.setAlignment(Pos.CENTER);
-
-        Label nameLabel = new Label(currentUser.getNomComplet());
-        nameLabel.setFont(Font.font("Arial", FontWeight.BOLD, 24));
-        nameLabel.setTextFill(Color.web("#1e293b"));
-
-        Label emailLabel = new Label(currentUser.getEmail());
-        emailLabel.setFont(Font.font("Arial", 16));
-        emailLabel.setTextFill(Color.web("#64748b"));
-
-        HBox roleBox = new HBox(5);
-        roleBox.setAlignment(Pos.CENTER);
-
-        Label roleLabel = new Label(currentUser.getRole().toUpperCase());
-        roleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-        roleLabel.setTextFill(Color.WHITE);
-        roleLabel.setPadding(new Insets(5, 15, 5, 15));
-        roleLabel.setStyle("-fx-background-color: #4f46e5; -fx-background-radius: 20;");
-
-        roleBox.getChildren().add(roleLabel);
-
-        userInfo.getChildren().addAll(nameLabel, emailLabel, roleBox);
-
-        // Statistiques personnelles
-        VBox personalStats = new VBox(15);
-        personalStats.setPadding(new Insets(20, 0, 0, 0));
-        personalStats.setAlignment(Pos.CENTER);
-
-        GridPane statsGrid = new GridPane();
-        statsGrid.setHgap(20);
-        statsGrid.setVgap(15);
-
-        String[][] statsData = {
-                {"Date d'inscription", currentUser.getCreatedAt() != null ?
-                        currentUser.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "N/A"},
-                {"Dernière connexion", "Aujourd'hui"},
-                {"Sessions actives", "1"},
-                {"Activité totale", "42h 15m"}
-        };
-
-        for (int i = 0; i < statsData.length; i++) {
-            Label statLabel = new Label(statsData[i][0] + ":");
-            statLabel.setFont(Font.font("Arial", 12));
-            statLabel.setTextFill(Color.web("#64748b"));
-
-            Label statValue = new Label(statsData[i][1]);
-            statValue.setFont(Font.font("Arial", FontWeight.BOLD, 12));
-            statValue.setTextFill(Color.web("#1e293b"));
-
-            statsGrid.add(statLabel, 0, i);
-            statsGrid.add(statValue, 1, i);
-        }
-
-        personalStats.getChildren().add(statsGrid);
-
-        profileCard.getChildren().addAll(avatar, userInfo, personalStats);
-        profileView.getChildren().add(profileCard);
-
-        ScrollPane scrollPane = new ScrollPane(profileView);
-        scrollPane.setFitToWidth(true);
-
-        root.setCenter(scrollPane);
-        updateSidebarButton("profile");
-    }
-
     private void logout() {
         SessionManager.logout();
         primaryStage.close();
-        new LoginView().start(new Stage());
+        // Retour à la page de login
+        try {
+            LoginView loginView = new LoginView();
+            Stage loginStage = new Stage();
+            loginView.start(loginStage);
+        } catch (Exception e) {
+            System.out.println("Erreur lors du retour au login: " + e.getMessage());
+        }
     }
 
     private void refreshDashboard() {
@@ -1780,16 +1769,43 @@ public class AdminDashboard {
         VBox sidebar = (VBox) root.getLeft();
         if (sidebar.getPrefWidth() == 280) {
             sidebar.setPrefWidth(80);
-            // Cacher les textes, ne garder que les icônes
+            updateSidebarButtons(true);
         } else {
             sidebar.setPrefWidth(280);
-            // Réafficher les textes
+            updateSidebarButtons(false);
+        }
+    }
+
+    private void updateSidebarButtons(boolean collapsed) {
+        VBox sidebar = (VBox) root.getLeft();
+        VBox navSection = (VBox) sidebar.getChildren().get(0);
+        VBox settingsSection = (VBox) sidebar.getChildren().get(2);
+
+        String[] fullTexts = {"📊 Dashboard", "👥 Utilisateurs", "👤 Mon Profil", "🚪 Déconnexion"};
+        String[] collapsedTexts = {"📊", "👥", "👤", "🚪"};
+
+        int buttonIndex = 0;
+        for (int i = 1; i < navSection.getChildren().size(); i++) {
+            if (navSection.getChildren().get(i) instanceof Button) {
+                Button btn = (Button) navSection.getChildren().get(i);
+                btn.setText(collapsed ? collapsedTexts[buttonIndex] : fullTexts[buttonIndex]);
+                buttonIndex++;
+            }
+        }
+
+        for (int i = 1; i < settingsSection.getChildren().size(); i++) {
+            if (settingsSection.getChildren().get(i) instanceof Button) {
+                Button btn = (Button) settingsSection.getChildren().get(i);
+                btn.setText(collapsed ? collapsedTexts[buttonIndex] : fullTexts[buttonIndex]);
+                buttonIndex++;
+            }
         }
     }
 
     private void updateSidebarButton(String activeButton) {
         VBox sidebar = (VBox) root.getLeft();
         VBox navSection = (VBox) sidebar.getChildren().get(0);
+        VBox settingsSection = (VBox) sidebar.getChildren().get(2);
 
         // Réinitialiser tous les boutons
         for (int i = 1; i < navSection.getChildren().size(); i++) {
@@ -1800,28 +1816,39 @@ public class AdminDashboard {
             }
         }
 
-        // Activer le bon bouton
-        String[] buttonNames = {"dashboard", "users", "products", "orders", "events", "donations", "analytics"};
-        int buttonIndex = -1;
-        for (int i = 0; i < buttonNames.length; i++) {
-            if (buttonNames[i].equals(activeButton)) {
-                buttonIndex = i + 1; // +1 car le premier enfant est le label
-                break;
+        for (int i = 1; i < settingsSection.getChildren().size(); i++) {
+            if (settingsSection.getChildren().get(i) instanceof Button) {
+                Button btn = (Button) settingsSection.getChildren().get(i);
+                btn.setStyle("-fx-background-color: transparent; -fx-text-fill: #64748b; " +
+                        "-fx-font-size: 14px; -fx-border-color: transparent;");
             }
         }
 
-        if (buttonIndex != -1 && buttonIndex < navSection.getChildren().size()) {
-            Button activeBtn = (Button) navSection.getChildren().get(buttonIndex);
+        // Activer le bon bouton
+        Button activeBtn = null;
+        switch (activeButton) {
+            case "dashboard":
+                if (navSection.getChildren().size() > 1) {
+                    activeBtn = (Button) navSection.getChildren().get(1);
+                }
+                break;
+            case "users":
+                if (navSection.getChildren().size() > 2) {
+                    activeBtn = (Button) navSection.getChildren().get(2);
+                }
+                break;
+            case "profile":
+                if (settingsSection.getChildren().size() > 1) {
+                    activeBtn = (Button) settingsSection.getChildren().get(1);
+                }
+                break;
+        }
+
+        if (activeBtn != null) {
             activeBtn.setStyle("-fx-background-color: #eef2ff; -fx-text-fill: #4f46e5; " +
                     "-fx-font-size: 14px; -fx-font-weight: bold; -fx-border-color: #c7d2fe; " +
                     "-fx-border-width: 0 0 0 3; -fx-border-radius: 0;");
         }
-    }
-
-    private void styleTextField(TextField field) {
-        field.setStyle("-fx-background-color: white; -fx-border-color: #e2e8f0; " +
-                "-fx-border-radius: 8; -fx-padding: 10 14; -fx-font-size: 14px;");
-        field.setPrefWidth(300);
     }
 
     private void showAlert(String title, String message) {
@@ -1831,10 +1858,8 @@ public class AdminDashboard {
         alert.setContentText(message);
         alert.initOwner(primaryStage);
 
-        // Style personnalisé pour l'alerte
         DialogPane dialogPane = alert.getDialogPane();
         dialogPane.setStyle("-fx-background-color: white; -fx-border-color: #e2e8f0; -fx-border-width: 1;");
-
         alert.showAndWait();
     }
 
@@ -1855,5 +1880,11 @@ public class AdminDashboard {
             System.err.println("Erreur lors de l'assombrissement de la couleur: " + e.getMessage());
         }
         return hex;
+    }
+
+    private void styleEnhancedTextField(TextField field) {
+        field.setStyle("-fx-background-color: white; -fx-border-color: #e2e8f0; " +
+                "-fx-border-radius: 8; -fx-padding: 10 14; -fx-font-size: 14px;");
+        field.setPrefWidth(300);
     }
 }

@@ -15,6 +15,7 @@ import javafx.stage.Stage;
 
 public class UserDashboard {
     private User currentUser;
+    private BorderPane root; // Ajout du champ root pour gérer le contenu
 
     public UserDashboard(User user) {
         this.currentUser = user;
@@ -24,7 +25,7 @@ public class UserDashboard {
     public void start(Stage stage) {
         stage.setTitle("LOOPI - Espace Participant");
 
-        BorderPane root = new BorderPane();
+        root = new BorderPane();
         root.setStyle("-fx-background-color: #f5f5f5;");
 
         // Header
@@ -160,8 +161,11 @@ public class UserDashboard {
         actionsBox.setAlignment(Pos.CENTER);
 
         Button browseBtn = createQuickActionButton("🛒 Explorer la boutique");
+        browseBtn.setOnAction(e -> showProducts());
         Button eventsBtn = createQuickActionButton("📅 Voir les événements");
+        eventsBtn.setOnAction(e -> showEvents());
         Button donateBtn = createQuickActionButton("❤️ Faire un don");
+        donateBtn.setOnAction(e -> showDonations());
 
         actionsBox.getChildren().addAll(browseBtn, eventsBtn, donateBtn);
         quickActions.getChildren().addAll(actionsTitle, actionsBox);
@@ -214,7 +218,8 @@ public class UserDashboard {
     }
 
     private void showEvents() {
-        showAlert("Info", "Événements - En développement");
+        EvenementParticipantView evenementView = new EvenementParticipantView(currentUser);
+        root.setCenter(evenementView.getView());
     }
 
     private void showDonations() {

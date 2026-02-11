@@ -12,20 +12,28 @@ import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import javafx.scene.shape.Rectangle;
 import java.io.File;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class GalerieView {
     private ProduitService ps = new ProduitService();
     private FlowPane flowPane = new FlowPane();
     private String selectedImagePath = "";
 
+    // Nouveaux composants pour les filtres
+    private TextField searchField = new TextField();
+    private ComboBox<String> categoryFilter = new ComboBox<>();
+    //dddddddddd
+    private ComboBox<String> sortCombo = new ComboBox<>();
+    //
+    private HBox statsBar = new HBox(20);
+
+
     private final Map<String, Integer> categories = new HashMap<>() {{
-        put("Mobilier recyclé", 1);
-        put("Décorations écologiques", 2);
-        put("Accessoires durables", 3);
-        put("Jouets éducatifs", 4);
+        put("Objets décoratifs", 1);
+        put("Art mural ", 2);
+        put("Mobilier artistique", 3);
+        put("Installations artistiques", 4);
     }};
 
     public VBox getView() {
@@ -33,6 +41,7 @@ public class GalerieView {
         container.setPadding(new Insets(30));
         container.setStyle("-fx-background-color: #f8f9fa;");
 
+        // --- TITRE ET BOUTON AJOUT ---
         Label title = new Label("Ma Galerie de Produits");
         title.setStyle("-fx-font-size: 26px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;");
 
@@ -45,6 +54,54 @@ public class GalerieView {
         HBox.setHgrow(header.getChildren().get(1), Priority.ALWAYS);
         header.setAlignment(Pos.CENTER_LEFT);
 
+        // --- SECTION STATISTIQUES ---
+        statsBar.setAlignment(Pos.CENTER);
+        statsBar.setPadding(new Insets(10));
+
+        // --- BARRE DE RECHERCHE ET FILTRE ---
+        HBox filterBar = new HBox(15);
+        filterBar.setAlignment(Pos.CENTER_LEFT);
+        filterBar.setPadding(new Insets(15));
+        filterBar.setStyle("-fx-background-color: white; -fx-background-radius: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 5, 0, 0, 2);");
+
+        Button refreshBtn = new Button("🔄 Actualiser");
+        refreshBtn.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5;");
+        refreshBtn.setOnAction(e -> refreshData());
+
+        categoryFilter.getItems().add("Toutes les catégories");
+        categoryFilter.getItems().addAll(categories.keySet());
+        categoryFilter.setValue("Toutes les catégories");
+        categoryFilter.setPrefWidth(200);
+        categoryFilter.setOnAction(e -> applyFilters());
+
+        searchField.setPromptText("🔍 Rechercher par nom...");
+        searchField.setPrefWidth(250);
+        searchField.setStyle("-fx-background-radius: 5;");
+        searchField.setOnKeyReleased(e -> applyFilters());
+
+
+        //ddd
+        // Config Tri
+        sortCombo.getItems().addAll(
+                "Nom (A-Z)",
+                "Nom (Z-A)",
+                "Plus récent",
+                "Moins récent");
+
+        sortCombo.setValue("Trier par : Nom (A-Z)");
+        sortCombo.setOnAction(e -> applyFilters());
+
+        filterBar.getChildren().addAll(refreshBtn, new Separator(javafx.geometry.Orientation.VERTICAL),
+                new Label("Catégorie:"), categoryFilter,
+                new Label("Nom:"), searchField,
+                new Separator(javafx.geometry.Orientation.VERTICAL),
+                new Label("Tri:"), sortCombo);
+        //
+
+
+
+        //filterBar.getChildren().addAll(refreshBtn, new Separator(javafx.geometry.Orientation.VERTICAL), new Label("Catégorie:"), categoryFilter, new Label("Nom:"), searchField);
+
         flowPane.setHgap(25);
         flowPane.setVgap(25);
         refreshData();
@@ -53,16 +110,89 @@ public class GalerieView {
         scroll.setFitToWidth(true);
         scroll.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
 
-        container.getChildren().addAll(header, scroll);
+        container.getChildren().addAll(header, statsBar, filterBar, scroll);
         return container;
+
+
+
+
+
+    }
+
+    private void updateStats(List<Produit> list) {
+        statsBar.getChildren().clear();
+
+        // Carte Total
+        statsBar.getChildren().add(createStatCard("Total", String.valueOf(list.size()), "#2c3e50"));
+
+        // Stats par catégorie
+        for (Map.Entry<String, Integer> entry : categories.entrySet()) {
+            long count = list.stream().filter(p -> p.getIdCategorie() == entry.getValue()).count();
+            if (count > 0) {
+                statsBar.getChildren().add(createStatCard(entry.getKey(), String.valueOf(count), "#27ae60"));
+            }
+        }
+    }
+
+    private VBox createStatCard(String label, String value, String color) {
+        VBox card = new VBox(2);
+        card.setAlignment(Pos.CENTER);
+        card.setPadding(new Insets(10, 20, 10, 20));
+        card.setStyle("-fx-background-color: white; -fx-background-radius: 10; -fx-border-color: " + color + "; -fx-border-width: 0 0 4 0; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 5, 0, 0, 2);");
+
+        Label valLbl = new Label(value);
+        valLbl.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: " + color + ";");
+        Label titleLbl = new Label(label);
+        titleLbl.setStyle("-fx-font-size: 10px; -fx-text-fill: #7f8c8d; -fx-font-weight: bold;");
+
+        card.getChildren().addAll(valLbl, titleLbl);
+        return card;
     }
 
     private void refreshData() {
-        flowPane.getChildren().clear();
         if (SessionManager.getCurrentUser() == null) return;
+        applyFilters();
+    }
 
+    private void applyFilters() {
+        flowPane.getChildren().clear();
         int userId = SessionManager.getCurrentUser().getId();
-        for (Produit p : ps.getProduitsParOrganisateur(userId)) {
+        List<Produit> allProduits = ps.getProduitsParOrganisateur(userId);
+
+        String search = searchField.getText().toLowerCase().trim();
+        String selectedCat = categoryFilter.getValue();
+        String selectedSort = sortCombo.getValue();
+
+        // Filtrage avec Stream API
+        List<Produit> filteredList = allProduits.stream()
+                .filter(p -> p.getNom().toLowerCase().contains(search))
+                .filter(p -> {
+                    if (selectedCat == null || selectedCat.equals("Toutes les catégories")) return true;
+                    return p.getIdCategorie() == categories.get(selectedCat);
+                })
+                .collect(Collectors.toList());
+
+        // MODIFICATION : Logique de Tri appliquée sur la liste filtrée
+        switch (selectedSort) {
+            case "Nom (A-Z)":
+                filteredList.sort(Comparator.comparing(p -> p.getNom().toLowerCase()));
+                break;
+            case "Nom (Z-A)":
+                filteredList.sort(Comparator.comparing((Produit p) -> p.getNom().toLowerCase()).reversed());
+                break;
+            case "Plus récent":
+                filteredList.sort(Comparator.comparingInt(Produit::getId).reversed());
+                break;
+            case "Moins récent":
+                filteredList.sort(Comparator.comparingInt(Produit::getId));
+                break;
+        }
+
+
+        // MODIFICATION : Mise à jour des statistiques basée sur la liste totale
+        updateStats(allProduits);
+
+        for (Produit p : filteredList) {
             flowPane.getChildren().add(createProductCard(p));
         }
     }
@@ -120,13 +250,12 @@ public class GalerieView {
 
         HBox actions = new HBox(10);
         actions.setAlignment(Pos.CENTER);
-        Button edit = new Button("✏️");
+        Button edit = new Button("MODIFIER✏️");
         edit.setOnAction(e -> showProductForm(p));
 
-        Button del = new Button("🗑️");
+        Button del = new Button("SUPPRIMER🗑️");
         del.setStyle("-fx-text-fill: #e74c3c;");
         del.setOnAction(e -> {
-            // --- CONFIRMATION DE SUPPRESSION ---
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
             alert.setTitle("Confirmation de suppression");
             alert.setHeaderText("Supprimer le produit ?");
@@ -146,76 +275,137 @@ public class GalerieView {
 
     private void showProductForm(Produit existingProduct) {
         Dialog<Produit> dialog = new Dialog<>();
-        dialog.setTitle(existingProduct == null ? "Nouveau Produit" : "Modifier Produit");
+        dialog.setTitle(existingProduct == null ? "Nouveau Trésor" : "Modifier le Produit");
+        dialog.getDialogPane().setStyle("-fx-background-color: #f1f8e9; -fx-border-color: #27ae60; -fx-border-width: 2;");
+
         ButtonType saveBtnType = new ButtonType("Enregistrer", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(saveBtnType, ButtonType.CANCEL);
 
-        GridPane grid = new GridPane();
-        grid.setHgap(10); grid.setVgap(15);
-        grid.setPadding(new Insets(20));
+        VBox mainForm = new VBox(15);
+        mainForm.setPadding(new Insets(20));
+        mainForm.setPrefWidth(400);
 
+        // --- 1. APERÇU ---
+        VBox groupPreview = new VBox(5);
+        Label lblPreview = new Label("Image :");
+        lblPreview.setStyle("-fx-font-weight: bold; -fx-text-fill: #2d5a27;");
+        ImageView preview = new ImageView();
+        preview.setFitWidth(200); preview.setFitHeight(120); preview.setPreserveRatio(true);
+        StackPane frame = new StackPane(preview);
+        frame.setStyle("-fx-background-color: white; -fx-padding: 8; -fx-border-color: #a5d6a7; -fx-border-radius: 10; -fx-background-radius: 10; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 0);");
+        groupPreview.getChildren().addAll(lblPreview, frame);
+
+        // --- 2. NOM ---
+        VBox groupNom = new VBox(5);
+        Label lblNom = new Label("Nom :");
+        lblNom.setStyle("-fx-font-weight: bold; -fx-text-fill: #2d5a27;");
         TextField nomF = new TextField(existingProduct != null ? existingProduct.getNom() : "");
-        TextArea descF = new TextArea(existingProduct != null ? existingProduct.getDescription() : "");
-        descF.setPrefRowCount(3);
+        nomF.setStyle("-fx-background-radius: 10; -fx-padding: 8;");
+        groupNom.getChildren().addAll(lblNom, nomF);
 
+        // --- 3. CATÉGORIE ---
+        VBox groupCat = new VBox(5);
+        Label lblCat = new Label("Catégorie :");
+        lblCat.setStyle("-fx-font-weight: bold; -fx-text-fill: #2d5a27;");
         ComboBox<String> catCombo = new ComboBox<>();
         catCombo.getItems().addAll(categories.keySet());
+        catCombo.setMaxWidth(Double.MAX_VALUE);
         if (existingProduct != null) {
-            categories.forEach((name, id) -> { if(id == existingProduct.getIdCategorie()) catCombo.setValue(name); });
+            int currentId = existingProduct.getIdCategorie();
+            categories.entrySet().stream()
+                    .filter(e -> e.getValue() == currentId)
+                    .findFirst().ifPresent(e -> catCombo.setValue(e.getKey()));
         } else {
             catCombo.getSelectionModel().selectFirst();
         }
+        groupCat.getChildren().addAll(lblCat, catCombo);
 
-        Button fileBtn = new Button("📂 Image");
-        Label pathLabel = new Label(existingProduct != null ? "Image déjà liée" : "Aucune...");
+        // --- 4. DESCRIPTION ---
+        VBox groupDesc = new VBox(5);
+        Label lblDesc = new Label("Description :");
+        lblDesc.setStyle("-fx-font-weight: bold; -fx-text-fill: #2d5a27;");
+        TextArea descF = new TextArea(existingProduct != null ? existingProduct.getDescription() : "");
+        descF.setPrefRowCount(3); descF.setWrapText(true);
+        descF.setStyle("-fx-background-radius: 10;");
+        groupDesc.getChildren().addAll(lblDesc, descF);
+
+        // --- 5. MÉDIA ---
+        VBox groupMedia = new VBox(5);
+        Button fileBtn = new Button("♻️ Remplacer l'image");
+        fileBtn.setMaxWidth(Double.MAX_VALUE);
+        fileBtn.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 10;");
+        groupMedia.getChildren().addAll(new Label("Média :"), fileBtn);
+
+        mainForm.getChildren().addAll(groupPreview, groupNom, groupCat, groupDesc, groupMedia);
+
+        if (existingProduct != null && existingProduct.getImage() != null) {
+            File file = new File(existingProduct.getImage());
+            if (file.exists()) preview.setImage(new Image(file.toURI().toString()));
+        }
 
         fileBtn.setOnAction(e -> {
             FileChooser fc = new FileChooser();
             File f = fc.showOpenDialog(null);
             if (f != null) {
                 selectedImagePath = f.getAbsolutePath();
-                pathLabel.setText(f.getName());
+                preview.setImage(new Image(f.toURI().toString()));
             }
         });
 
-        grid.add(new Label("Nom:"), 0, 0); grid.add(nomF, 1, 0);
-        grid.add(new Label("Description:"), 0, 1); grid.add(descF, 1, 1);
-        grid.add(new Label("Catégorie:"), 0, 2); grid.add(catCombo, 1, 2);
-        grid.add(new Label("Photo:"), 0, 3); grid.add(fileBtn, 1, 3);
-        grid.add(pathLabel, 1, 4);
+        dialog.getDialogPane().setContent(mainForm);
 
-        dialog.getDialogPane().setContent(grid);
+        // --- CONTRÔLES DE SAISIE ---
+        // --- REMPLACER UNIQUEMENT LE BLOC "CONTRÔLES DE SAISIE" DANS showProductForm ---
 
-        // --- AJOUT DES CONTRÔLES DE SAISIE ---
         final Button okButton = (Button) dialog.getDialogPane().lookupButton(saveBtnType);
         okButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
             String nom = nomF.getText().trim();
             String desc = descF.getText().trim();
             StringBuilder errorMsg = new StringBuilder();
 
-            // Validation Nom
+            // 1. Contrôle du NOM
             if (nom.isEmpty()) {
-                errorMsg.append("- Le nom ne doit pas être vide.\n");
-            } else if (nom.length() < 2 || nom.length() > 30) {
-                errorMsg.append("- Le nom doit contenir entre 2 et 30 caractères.\n");
-            } else if (!nom.matches("^[a-zA-Z0-9À-ÿ]+( [a-zA-Z0-9À-ÿ]+)*$")) {
-                errorMsg.append("- Le nom ne doit pas contenir de symboles spéciaux ni d'espaces multiples.\n");
+                errorMsg.append("- Le nom est obligatoire.\n");
+            } else if (nom.length() < 3 || nom.length() > 50) {
+                errorMsg.append("- Le nom doit contenir entre 3 et 50 caractères.\n");
+            } else if (!nom.matches("^[a-zA-Z0-9\\sàâäéèêëïîôöùûüçÀÂÄÉÈÊËÏÎÔÖÙÛÜÇ]+$")) {
+                // Regex autorisant lettres (accentuées), chiffres et espaces
+                errorMsg.append("- Le nom ne doit pas contenir de caractères spéciaux.\n");
             }
 
-            // Validation Description
+            // 2. Contrôle de la DESCRIPTION
             if (desc.isEmpty()) {
                 errorMsg.append("- La description est obligatoire.\n");
-            } else if (desc.length() < 10 || desc.length() > 255) {
-                errorMsg.append("- La description doit contenir entre 10 et 255 caractères.\n");
+            } else if (desc.length() < 10 || desc.length() > 500) {
+                errorMsg.append("- La description doit contenir entre 10 et 500 caractères.\n");
             }
 
+            // 3. Contrôle de l'IMAGE (Doublon)
+            String currentImagePath = (selectedImagePath.isEmpty() && existingProduct != null) ? existingProduct.getImage() : selectedImagePath;
+
+            if (currentImagePath == null || currentImagePath.isEmpty()) {
+                errorMsg.append("- Veuillez sélectionner une image.\n");
+            } else {
+                boolean imageChanged = existingProduct == null || !currentImagePath.equals(existingProduct.getImage());
+                if (imageChanged) {
+                    boolean exists = ps.getProduitsParOrganisateur(SessionManager.getCurrentUser().getId())
+                            .stream().anyMatch(p -> currentImagePath.equals(p.getImage()));
+                    if (exists) errorMsg.append("- Cette image est déjà utilisée pour un autre de vos produits.\n");
+                }
+            }
+
+            // AFFICHAGE DES ERREURS
             if (errorMsg.length() > 0) {
                 Alert alert = new Alert(Alert.AlertType.ERROR);
                 alert.setTitle("Erreur de validation");
-                alert.setHeaderText("Veuillez corriger les champs suivants :");
+                alert.setHeaderText("Données invalides");
                 alert.setContentText(errorMsg.toString());
+
+                // Style pour l'alerte
+                alert.getDialogPane().setStyle("-fx-border-color: #e74c3c; -fx-border-width: 2;");
+
                 alert.showAndWait();
-                event.consume(); // Empêche la fermeture du dialogue
+                event.consume(); // Empêche la fermeture du dialogue si erreurs
             }
         });
 
@@ -224,10 +414,8 @@ public class GalerieView {
                 int userId = SessionManager.getCurrentUser().getId();
                 int catId = categories.get(catCombo.getValue());
                 String img = (selectedImagePath.isEmpty() && existingProduct != null) ? existingProduct.getImage() : selectedImagePath;
-
-                if (existingProduct == null) {
-                    return new Produit(0, nomF.getText().trim(), descF.getText().trim(), img, catId, userId);
-                } else {
+                if (existingProduct == null) return new Produit(0, nomF.getText().trim(), descF.getText().trim(), img, catId, userId);
+                else {
                     existingProduct.setNom(nomF.getText().trim());
                     existingProduct.setDescription(descF.getText().trim());
                     existingProduct.setImage(img);

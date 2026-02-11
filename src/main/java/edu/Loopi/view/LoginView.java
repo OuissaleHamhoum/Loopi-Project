@@ -480,8 +480,9 @@ public class LoginView extends Application {
                     break;
 
                 case "participant":
-                    showAlert("Dashboard Participant", "Le dashboard participant n'est pas encore implémenté.");
-                    new LoginView().start(new Stage());
+                    // UPDATED: Now opens the actual UserDashboard
+                    UserDashboard userDashboard = new UserDashboard(user);
+                    userDashboard.start(dashboardStage);
                     break;
 
                 default:

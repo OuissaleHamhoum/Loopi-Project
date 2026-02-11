@@ -159,16 +159,26 @@ public class UserDashboard {
         HBox actionsBox = new HBox(15);
         actionsBox.setAlignment(Pos.CENTER);
 
+        // 1. Create the buttons
         Button browseBtn = createQuickActionButton("🛒 Explorer la boutique");
-        Button eventsBtn = createQuickActionButton("📅 Voir les événements");
-        Button donateBtn = createQuickActionButton("❤️ Faire un don");
+        browseBtn.setOnAction(e -> showProducts());
 
+// ADD THIS LINE BELOW:
+        Button eventsBtn = createQuickActionButton("📅 Voir les événements");
+        eventsBtn.setOnAction(e -> showEvents());
+
+        Button donateBtn = createQuickActionButton("❤️ Faire un don");
+        donateBtn.setOnAction(e -> showDonations());
+
+// 2. Now you can add them all to the box
         actionsBox.getChildren().addAll(browseBtn, eventsBtn, donateBtn);
         quickActions.getChildren().addAll(actionsTitle, actionsBox);
 
         content.getChildren().addAll(welcome, subtitle, statsBox, quickActions);
         return content;
     }
+
+
 
     private VBox createInfoCard(String icon, String title, String value) {
         VBox card = new VBox(10);
@@ -205,10 +215,12 @@ public class UserDashboard {
         return btn;
     }
 
-    private void showProducts() {
-        showAlert("Info", "Boutique - En développement");
-    }
 
+
+    private void showProducts() {
+        // Replace the showAlert with this:
+        new ProductGalleryView().show();
+    }
     private void showOrders() {
         showAlert("Info", "Mes commandes - En développement");
     }

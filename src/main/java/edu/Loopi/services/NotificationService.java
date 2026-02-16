@@ -15,7 +15,7 @@ public class NotificationService implements INotificationService {
         this.connection = MyConnection.getInstance().getConnection();
         createNotificationsTable();
     }
-
+// pour tester la creation
     private void createNotificationsTable() {
         String sql = "CREATE TABLE IF NOT EXISTS notifications (" +
                 "id INT AUTO_INCREMENT PRIMARY KEY," +
@@ -40,7 +40,7 @@ public class NotificationService implements INotificationService {
             System.err.println("❌ Erreur création table notifications: " + e.getMessage());
         }
     }
-
+// Application
     @Override
     public void creerNotificationParticipation(int idUser, int idEvenement, String eventTitre) {
         String titre = "✅ Participation confirmée";

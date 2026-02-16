@@ -11,7 +11,9 @@ public interface INotificationService {
     void creerNotificationRappel(int idUser, int idEvenement, String eventTitre);
 
     // Gestion des notifications
+    // Toutes les notifs
     List<Notification> getNotificationsByUser(int idUser);
+    // Non lues seulement
     List<Notification> getNotificationsNonLues(int idUser);
     void marquerCommeLue(int idNotification);
     void marquerToutesCommeLues(int idUser);

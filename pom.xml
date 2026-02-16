@@ -15,6 +15,7 @@
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <javafx.version>17.0.6</javafx.version>
+        <javafx.maven.plugin.version>0.0.8</javafx.maven.plugin.version>
     </properties>
 
     <dependencies>
@@ -25,7 +26,7 @@
             <version>8.0.33</version>
         </dependency>
 
-        <!-- JavaFX Dependencies -->
+        <!-- JavaFX Dependencies - All modules -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
@@ -51,24 +52,23 @@
             <artifactId>javafx-web</artifactId>
             <version>${javafx.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-swing</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-media</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
 
-        <!-- Email - Jakarta Mail API (remplacement pour javax.mail) -->
+        <!-- Other dependencies (keep your existing ones) -->
+        <!-- Email - Jakarta Mail API -->
         <dependency>
             <groupId>com.sun.mail</groupId>
             <artifactId>jakarta.mail</artifactId>
             <version>2.0.1</version>
-        </dependency>
-
-        <!-- Alternative pour javax.mail -->
-        <dependency>
-            <groupId>javax.mail</groupId>
-            <artifactId>javax.mail-api</artifactId>
-            <version>1.6.2</version>
-        </dependency>
-        <dependency>
-            <groupId>com.sun.mail</groupId>
-            <artifactId>javax.mail</artifactId>
-            <version>1.6.2</version>
         </dependency>
 
         <!-- QR Code Generation -->
@@ -118,13 +118,15 @@
             <artifactId>commons-io</artifactId>
             <version>2.15.1</version>
         </dependency>
+
+        <!-- Unit Tests -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.1</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
-    <!-- Gson pour parser JSON -->
-    <dependency>
-        <groupId>com.google.code.gson</groupId>
-        <artifactId>gson</artifactId>
-        <version>2.10.1</version>
-    </dependency>
 
     <build>
         <plugins>
@@ -136,24 +138,16 @@
                 <configuration>
                     <source>${maven.compiler.source}</source>
                     <target>${maven.compiler.target}</target>
-                    <compilerArgs>
-                        <arg>--add-exports</arg>
-                        <arg>javafx.graphics/com.sun.javafx.application=ALL-UNNAMED</arg>
-                    </compilerArgs>
                 </configuration>
             </plugin>
 
-            <!-- JavaFX Plugin -->
+            <!-- JavaFX Plugin - Required for running JavaFX apps with Maven -->
             <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
-                <version>0.0.8</version>
+                <version>${javafx.maven.plugin.version}</version>
                 <configuration>
                     <mainClass>edu.Loopi.tests.MainClass</mainClass>
-                    <options>
-                        <option>--add-exports</option>
-                        <option>javafx.graphics/com.sun.javafx.application=ALL-UNNAMED</option>
-                    </options>
                 </configuration>
             </plugin>
 

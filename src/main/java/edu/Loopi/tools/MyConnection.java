@@ -10,8 +10,9 @@ public class MyConnection {
     private static final String PASSWORD = ""; // Mettre votre mot de passe MySQL
 
     private Connection connection;
-    private static MyConnection instance;
+    private static MyConnection instance; // L'instance unique (stockée en mémoire)
 
+    // Constructeur PRIVÉ - personne ne peut créer d'instance directement
     private MyConnection() {
         try {
             Class.forName("com.mysql.cj.jdbc.Driver");
@@ -24,6 +25,7 @@ public class MyConnection {
         }
     }
 
+    // La méthode getInstance() - POINT D'ACCÈS UNIQUE
     public static MyConnection getInstance() {
         if (instance == null) {
             synchronized (MyConnection.class) {
@@ -32,7 +34,7 @@ public class MyConnection {
                 }
             }
         }
-        return instance;
+        return instance; // Retourne toujours la même instance
     }
 
     public Connection getConnection() {

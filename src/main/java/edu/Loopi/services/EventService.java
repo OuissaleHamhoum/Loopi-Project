@@ -442,7 +442,21 @@ public class EventService implements IEvenementService {
 
     @Override
     public String getEventStatut(Event event) {
-        return event.getStatut();
+        if (event == null || event.getDate_evenement() == null) {
+            return "Date non définie";
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime eventDate = event.getDate_evenement();
+
+        // Comparaison des dates
+        if (eventDate.toLocalDate().isEqual(now.toLocalDate())) {
+            return "En cours";
+        } else if (eventDate.isAfter(now)) {
+            return "À venir";
+        } else {
+            return "Passé";
+        }
     }
 
     @Override

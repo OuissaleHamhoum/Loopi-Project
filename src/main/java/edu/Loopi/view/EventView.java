@@ -138,7 +138,7 @@ public class EventView {
         // Vérifier si la clé API est configurée
         if (OPENAI_API_KEY == null || OPENAI_API_KEY.isEmpty() ||
                 OPENAI_API_KEY.equals("OPENAI_API_KEY") ||
-                !OPENAI_API_KEY.startsWith("sk-")) {
+                !OPENAI_API_KEY.startsWith("")) {
 
             System.out.println("ℹ️ Pas de clé API valide, utilisation d'images gratuites");
             return downloadFreeImage(prompt);

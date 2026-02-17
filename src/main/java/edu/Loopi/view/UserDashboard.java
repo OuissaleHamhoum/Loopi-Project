@@ -17,6 +17,7 @@ import javafx.stage.Stage;
 import edu.Loopi.view.ProductGalleryView;
 import edu.Loopi.view.ParticipantCampaignView;
 import edu.Loopi.view.DonationHistoryView;
+import edu.Loopi.view.FavorisView;
 
 public class UserDashboard {
     private User currentUser;
@@ -186,6 +187,10 @@ public class UserDashboard {
         Button browseBtn = createMenuButton("🛒 Galerie");
         browseBtn.setOnAction(e -> showProducts());
 
+        // NOUVEAU BOUTON FAVORIS
+        Button favorisBtn = createMenuButton("❤️ Mes favoris");
+        favorisBtn.setOnAction(e -> showFavoris());
+
         Button ordersBtn = createMenuButton("📦 Mes commandes");
         ordersBtn.setOnAction(e -> showOrders());
 
@@ -224,7 +229,7 @@ public class UserDashboard {
 
         menuItems.getChildren().addAll(
                 eventsSection, eventsBtn, myParticipationsBtn,
-                shopSection, browseBtn, ordersBtn,
+                shopSection, browseBtn, favorisBtn, ordersBtn,
                 donationsSection, campaignsBtn, myDonationsBtn, myCouponsBtn,
                 profileSection, profileBtn, settingsBtn
         );
@@ -251,7 +256,7 @@ public class UserDashboard {
         return btn;
     }
 
-    // ============ MÉTHODES DE NAVIGATION FONCTIONNELLES ============
+    // ============ MÉTHODES DE NAVIGATION ============
 
     private void showEvents() {
         try {
@@ -290,6 +295,18 @@ public class UserDashboard {
         } catch (Exception e) {
             System.err.println("❌ Erreur chargement galerie: " + e.getMessage());
             showComingSoon("Galerie", "🛒");
+        }
+    }
+
+    // NOUVELLE MÉTHODE POUR LES FAVORIS
+    private void showFavoris() {
+        try {
+            FavorisView favorisView = new FavorisView();
+            root.setCenter(favorisView.getView());
+            System.out.println("✅ Page des favoris affichée");
+        } catch (Exception e) {
+            System.err.println("❌ Erreur chargement favoris: " + e.getMessage());
+            showComingSoon("Mes favoris", "❤️");
         }
     }
 
@@ -375,7 +392,6 @@ public class UserDashboard {
         title.setFont(Font.font("Arial", FontWeight.BOLD, 28));
         title.setTextFill(Color.web("#064e3b"));
 
-        // Exemple de tableau de commandes
         VBox ordersList = new VBox(10);
         ordersList.setPadding(new Insets(20));
         ordersList.setStyle("-fx-background-color: #f9f9f9; -fx-background-radius: 8;");
@@ -403,18 +419,14 @@ public class UserDashboard {
         title.setFont(Font.font("Arial", FontWeight.BOLD, 28));
         title.setTextFill(Color.web("#064e3b"));
 
-        // Grille de coupons
         GridPane couponsGrid = new GridPane();
         couponsGrid.setHgap(20);
         couponsGrid.setVgap(20);
         couponsGrid.setPadding(new Insets(20));
         couponsGrid.setAlignment(Pos.CENTER);
 
-        // Coupon 1
         VBox coupon1 = createCouponCard("ECO10", "10% de réduction", "Valable jusqu'au 30/03/2024", "#10b981");
-        // Coupon 2
         VBox coupon2 = createCouponCard("LOYALTY20", "20% sur votre prochain achat", "Valable jusqu'au 15/04/2024", "#3b82f6");
-        // Coupon 3
         VBox coupon3 = createCouponCard("FREESHIP", "Livraison gratuite", "Valable jusqu'au 31/03/2024", "#8b5cf6");
 
         couponsGrid.add(coupon1, 0, 0);
@@ -470,7 +482,6 @@ public class UserDashboard {
         title.setFont(Font.font("Arial", FontWeight.BOLD, 28));
         title.setTextFill(Color.web("#064e3b"));
 
-        // Informations du profil
         GridPane profileInfo = new GridPane();
         profileInfo.setHgap(20);
         profileInfo.setVgap(15);
@@ -478,7 +489,6 @@ public class UserDashboard {
         profileInfo.setStyle("-fx-background-color: #f9f9f9; -fx-background-radius: 8;");
         profileInfo.setAlignment(Pos.CENTER);
 
-        // Ajouter les informations
         profileInfo.add(new Label("Nom complet:"), 0, 0);
         profileInfo.add(new Label(currentUser.getNomComplet()), 1, 0);
 
@@ -515,7 +525,6 @@ public class UserDashboard {
         title.setFont(Font.font("Arial", FontWeight.BOLD, 28));
         title.setTextFill(Color.web("#064e3b"));
 
-        // Paramètres de notification
         VBox notificationSettings = new VBox(10);
         notificationSettings.setPadding(new Insets(20));
         notificationSettings.setStyle("-fx-background-color: #f9f9f9; -fx-background-radius: 8;");
@@ -534,7 +543,6 @@ public class UserDashboard {
 
         notificationSettings.getChildren().addAll(notifTitle, emailNotif, smsNotif, promoNotif);
 
-        // Paramètres de confidentialité
         VBox privacySettings = new VBox(10);
         privacySettings.setPadding(new Insets(20));
         privacySettings.setStyle("-fx-background-color: #f9f9f9; -fx-background-radius: 8;");

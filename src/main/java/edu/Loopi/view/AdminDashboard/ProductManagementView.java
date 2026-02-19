@@ -211,20 +211,47 @@ public class ProductManagementView {
         searchBox.getChildren().addAll(searchIcon, searchField);
 
         // Filtre organisateur
+
+        //organisateurFilter = new ComboBox<>();
+        //organisateurFilter.setPromptText("Organisateur");
+        //organisateurFilter.setPrefWidth(140);
+        //organisateurFilter.setStyle("-fx-background-radius: 20; -fx-font-size: 12px;");
+        //organisateurFilter.setOnAction(e -> loadProducts());
+        //
+
+        VBox orgFilterBox = new VBox(5);
+        Label orgLabel = new Label("Organisateur");
+        orgLabel.setFont(Font.font("System", FontWeight.BOLD, 12));
+
         organisateurFilter = new ComboBox<>();
-        organisateurFilter.setPromptText("Organisateur");
-        organisateurFilter.setPrefWidth(140);
-        organisateurFilter.setStyle("-fx-background-radius: 20; -fx-font-size: 12px;");
+        organisateurFilter.setPromptText("Tous les organisateurs");
+        organisateurFilter.setPrefWidth(200);
+        organisateurFilter.setStyle("-fx-background-radius: 5; -fx-background-color: white;");
         organisateurFilter.setOnAction(e -> loadProducts());
 
         // Filtre catégorie
+        //categoryFilter = new ComboBox<>();
+        //categoryFilter.getItems().addAll("Toutes", "Objets décoratifs", "Art mural",
+        //        "Mobilier artistique", "Installations artistiques");
+        //categoryFilter.setValue("Toutes");
+        //categoryFilter.setPrefWidth(140);
+        //categoryFilter.setStyle("-fx-background-radius: 20; -fx-font-size: 12px;");
+        //categoryFilter.setOnAction(e -> loadProducts());
+
+        VBox catFilterBox = new VBox(5);
+        Label catLabel = new Label("Catégorie");
+        catLabel.setFont(Font.font("System", FontWeight.BOLD, 12));
+        catLabel.setTextFill(Color.web(dashboard.getTextColor()));
+
         categoryFilter = new ComboBox<>();
         categoryFilter.getItems().addAll("Toutes", "Objets décoratifs", "Art mural",
                 "Mobilier artistique", "Installations artistiques");
         categoryFilter.setValue("Toutes");
-        categoryFilter.setPrefWidth(140);
-        categoryFilter.setStyle("-fx-background-radius: 20; -fx-font-size: 12px;");
+        categoryFilter.setPrefWidth(180);
+        categoryFilter.setStyle("-fx-background-radius: 5; -fx-background-color: white;");
         categoryFilter.setOnAction(e -> loadProducts());
+
+        catFilterBox.getChildren().addAll(catLabel, categoryFilter);
 
         // Bouton Exporter CSV
         MenuButton exportMenu = new MenuButton("📥 Export");

@@ -455,7 +455,7 @@ public class GalerieView {
         actions.setPadding(new Insets(8, 0, 0, 0));
 
         // Bouton Modifier
-        Button editBtn = new Button("✏️ Modifier");
+        Button editBtn = new Button("Modifier");
         editBtn.setStyle("-fx-background-color: " + PRIMARY_COLOR + "; -fx-text-fill: white; " +
                 "-fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 8 0; -fx-background-radius: 8; " +
                 "-fx-cursor: hand;");
@@ -476,7 +476,7 @@ public class GalerieView {
         editBtn.setOnAction(e -> showProductForm(p));
 
         // Bouton Supprimer
-        Button deleteBtn = new Button("🗑️ Supprimer");
+        Button deleteBtn = new Button("Supprimer");
         deleteBtn.setStyle("-fx-background-color: white; -fx-text-fill: " + DANGER_COLOR + "; " +
                 "-fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 8 0; -fx-background-radius: 8; " +
                 "-fx-cursor: hand; -fx-border-color: " + DANGER_COLOR + "; -fx-border-width: 1.5;");

@@ -191,11 +191,11 @@ public class ProductDetailView {
 
     private void updateFavorisButton(Button btn) {
         if (estFavoris) {
-            btn.setText("❤️");
+            btn.setText("❤️"); // Cœur rouge plein
             btn.setStyle("-fx-background-color: transparent; -fx-font-size: 28px; -fx-text-fill: #e74c3c; -fx-cursor: hand;");
         } else {
-            btn.setText("🤍");
-            btn.setStyle("-fx-background-color: transparent; -fx-font-size: 28px; -fx-text-fill: #7f8c8d; -fx-cursor: hand;");
+            btn.setText("❤️"); // On garde le même symbole mais en gris
+            btn.setStyle("-fx-background-color: transparent; -fx-font-size: 28px; -fx-text-fill: #95a5a6; -fx-cursor: hand;"); // Gris
         }
     }
 

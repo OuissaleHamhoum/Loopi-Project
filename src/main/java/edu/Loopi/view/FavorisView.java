@@ -435,23 +435,50 @@ public class FavorisView {
         description.setWrapText(true);
         description.setMaxHeight(40);
 
-        // Actions
+        // Actions avec les nouveaux styles
         HBox actions = new HBox(10);
         actions.setAlignment(Pos.CENTER);
         actions.setPadding(new Insets(5, 0, 0, 0));
 
+        // Bouton Voir - Rose clair (#FFB6C1)
         Button viewBtn = new Button("Voir");
-        viewBtn.setStyle("-fx-background-color: " + PRIMARY_COLOR + "; -fx-text-fill: white; " +
+        viewBtn.setStyle("-fx-background-color: #FFB6C1; -fx-text-fill: white; " +
                 "-fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 8 0; -fx-background-radius: 8; " +
                 "-fx-cursor: hand;");
         viewBtn.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(viewBtn, Priority.ALWAYS);
 
-        Button removeBtn = new Button("✕");
-        removeBtn.setStyle("-fx-background-color: white; -fx-text-fill: #dc3545; -fx-font-weight: bold; " +
-                "-fx-font-size: 16px; -fx-padding: 6 12; -fx-background-radius: 8; -fx-cursor: hand; " +
-                "-fx-border-color: #dc3545; -fx-border-radius: 8; -fx-border-width: 1.5;");
-        removeBtn.setPrefWidth(40);
+        // Effet de survol pour le bouton Voir (rose plus foncé)
+        viewBtn.setOnMouseEntered(e -> {
+            viewBtn.setStyle("-fx-background-color: #FFA0B0; -fx-text-fill: white; " +
+                    "-fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 8 0; -fx-background-radius: 8; " +
+                    "-fx-cursor: hand; -fx-effect: dropshadow(gaussian, rgba(255,182,193,0.5), 10, 0, 0, 2);");
+        });
+        viewBtn.setOnMouseExited(e -> {
+            viewBtn.setStyle("-fx-background-color: #FFB6C1; -fx-text-fill: white; " +
+                    "-fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 8 0; -fx-background-radius: 8; " +
+                    "-fx-cursor: hand;");
+        });
+
+        // Bouton Supprimer - Rouge foncé (#8B0000)
+        Button removeBtn = new Button("Supprimer");
+        removeBtn.setStyle("-fx-background-color: #8B0000; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 8 0; -fx-background-radius: 8; " +
+                "-fx-cursor: hand;");
+        removeBtn.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(removeBtn, Priority.ALWAYS);
+
+        // Effet de survol pour le bouton Supprimer (rouge plus clair mais toujours foncé)
+        removeBtn.setOnMouseEntered(e -> {
+            removeBtn.setStyle("-fx-background-color: #A52A2A; -fx-text-fill: white; " +
+                    "-fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 8 0; -fx-background-radius: 8; " +
+                    "-fx-cursor: hand; -fx-effect: dropshadow(gaussian, rgba(139,0,0,0.5), 10, 0, 0, 2);");
+        });
+        removeBtn.setOnMouseExited(e -> {
+            removeBtn.setStyle("-fx-background-color: #8B0000; -fx-text-fill: white; " +
+                    "-fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 8 0; -fx-background-radius: 8; " +
+                    "-fx-cursor: hand;");
+        });
 
         viewBtn.setOnAction(e -> {
             ProductDetailView detailView = new ProductDetailView(p);
@@ -465,7 +492,7 @@ public class FavorisView {
         contentBox.getChildren().addAll(category, name, description, actions);
         card.getChildren().addAll(imageContainer, contentBox);
 
-        // Hover Effects
+        // Hover Effects sur la carte
         DropShadow shadow = new DropShadow();
         shadow.setColor(Color.rgb(0, 0, 0, 0.2));
         shadow.setRadius(20);

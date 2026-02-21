@@ -19,6 +19,8 @@ import javafx.animation.ScaleTransition;
 import javafx.util.Duration;
 
 import java.io.File;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -61,6 +63,9 @@ public class ProductDetailView {
         // === SECTION PRODUIT ===
         VBox productSection = createProductSection();
 
+        // === SECTION RESEAUX SOCIAUX ===
+        HBox socialShareSection = createSocialShareSection();
+
         // === SECTION FEEDBACK ===
         VBox feedbackSection = createFeedbackSection();
 
@@ -68,14 +73,14 @@ public class ProductDetailView {
         VBox similarSection = createSimilarProductsSection();
 
         // Ajout de toutes les sections au conteneur principal
-        mainContainer.getChildren().addAll(topBar, productSection, feedbackSection, similarSection);
+        mainContainer.getChildren().addAll(topBar, productSection, socialShareSection, feedbackSection, similarSection);
 
         // ScrollPane pour permettre le défilement
         ScrollPane scrollPane = new ScrollPane(mainContainer);
         scrollPane.setFitToWidth(true);
         scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
 
-        Scene scene = new Scene(scrollPane, 900, 700);
+        Scene scene = new Scene(scrollPane, 900, 800);
         stage.setScene(scene);
         stage.setTitle("Détails du Produit - " + produit.getNom());
         stage.show();
@@ -146,6 +151,172 @@ public class ProductDetailView {
 
         productSection.getChildren().addAll(imageContainer, titleBox, category, description);
         return productSection;
+    }
+
+    /**
+     * Crée la section de partage sur les réseaux sociaux
+     */
+    private HBox createSocialShareSection() {
+        HBox socialSection = new HBox(20);
+        socialSection.setAlignment(Pos.CENTER_LEFT);
+        socialSection.setPadding(new Insets(15, 20, 15, 20));
+        socialSection.setStyle("-fx-background-color: white; -fx-background-radius: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);");
+
+        Label shareLabel = new Label("Partager sur :");
+        shareLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #2c3e50;");
+
+        // Bouton Facebook
+        Button facebookBtn = createSocialButton("Facebook", "#1877f2", "F");
+        facebookBtn.setOnAction(e -> shareOnFacebook());
+
+        // Bouton Twitter
+        Button twitterBtn = createSocialButton("Twitter", "#1da1f2", "🐦");
+        twitterBtn.setOnAction(e -> shareOnTwitter());
+
+        // Bouton WhatsApp
+        Button whatsappBtn = createSocialButton("WhatsApp", "#25d366", "📱");
+        whatsappBtn.setOnAction(e -> shareOnWhatsApp());
+
+        // Bouton LinkedIn
+        Button linkedinBtn = createSocialButton("LinkedIn", "#0077b5", "in");
+        linkedinBtn.setOnAction(e -> shareOnLinkedIn());
+
+        // Bouton Copier le lien
+        Button copyBtn = createSocialButton("Copier le lien", "#6c757d", "📋");
+        copyBtn.setOnAction(e -> copyLinkToClipboard());
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        socialSection.getChildren().addAll(shareLabel, facebookBtn, twitterBtn, whatsappBtn, linkedinBtn, spacer, copyBtn);
+        return socialSection;
+    }
+
+    /**
+     * Crée un bouton de réseau social stylisé
+     */
+    private Button createSocialButton(String text, String color, String icon) {
+        Button btn = new Button(icon + " " + text);
+        btn.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 8 15; " +
+                "-fx-background-radius: 20; -fx-cursor: hand;");
+
+        // Animation au survol
+        ScaleTransition st = new ScaleTransition(Duration.millis(200), btn);
+        st.setToX(1.05);
+        st.setToY(1.05);
+
+        btn.setOnMouseEntered(e -> {
+            st.setRate(1);
+            st.play();
+            btn.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; " +
+                    "-fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 8 15; " +
+                    "-fx-background-radius: 20; -fx-cursor: hand; -fx-effect: dropshadow(gaussian, " + color + "80, 10, 0, 0, 2);");
+        });
+
+        btn.setOnMouseExited(e -> {
+            st.setRate(-1);
+            st.play();
+            btn.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; " +
+                    "-fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 8 15; " +
+                    "-fx-background-radius: 20; -fx-cursor: hand;");
+        });
+
+        return btn;
+    }
+
+    /**
+     * Partage sur Facebook
+     */
+    private void shareOnFacebook() {
+        try {
+            String url = "https://www.facebook.com/sharer/sharer.php?u=" +
+                    URLEncoder.encode(getProductUrl(), StandardCharsets.UTF_8);
+            openBrowser(url);
+            showAlert("Partage Facebook", "Redirection vers Facebook pour partager ce produit !");
+        } catch (Exception e) {
+            showAlert("Erreur", "Impossible d'ouvrir Facebook: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Partage sur Twitter
+     */
+    private void shareOnTwitter() {
+        try {
+            String text = "Découvrez " + produit.getNom() + " sur LOOPI !";
+            String url = "https://twitter.com/intent/tweet?text=" +
+                    URLEncoder.encode(text, StandardCharsets.UTF_8) +
+                    "&url=" + URLEncoder.encode(getProductUrl(), StandardCharsets.UTF_8);
+            openBrowser(url);
+            showAlert("Partage Twitter", "Redirection vers Twitter pour partager ce produit !");
+        } catch (Exception e) {
+            showAlert("Erreur", "Impossible d'ouvrir Twitter: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Partage sur WhatsApp
+     */
+    private void shareOnWhatsApp() {
+        try {
+            String text = "Découvrez " + produit.getNom() + " sur LOOPI !\n" + getProductUrl();
+            String url = "https://api.whatsapp.com/send?text=" +
+                    URLEncoder.encode(text, StandardCharsets.UTF_8);
+            openBrowser(url);
+            showAlert("Partage WhatsApp", "Redirection vers WhatsApp pour partager ce produit !");
+        } catch (Exception e) {
+            showAlert("Erreur", "Impossible d'ouvrir WhatsApp: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Partage sur LinkedIn
+     */
+    private void shareOnLinkedIn() {
+        try {
+            String url = "https://www.linkedin.com/sharing/share-offsite/?url=" +
+                    URLEncoder.encode(getProductUrl(), StandardCharsets.UTF_8);
+            openBrowser(url);
+            showAlert("Partage LinkedIn", "Redirection vers LinkedIn pour partager ce produit !");
+        } catch (Exception e) {
+            showAlert("Erreur", "Impossible d'ouvrir LinkedIn: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Copie le lien du produit dans le presse-papiers
+     */
+    private void copyLinkToClipboard() {
+        try {
+            javafx.scene.input.Clipboard clipboard = javafx.scene.input.Clipboard.getSystemClipboard();
+            javafx.scene.input.ClipboardContent content = new javafx.scene.input.ClipboardContent();
+            content.putString(getProductUrl());
+            clipboard.setContent(content);
+            showAlert("Lien copié !", "Le lien du produit a été copié dans le presse-papiers.");
+        } catch (Exception e) {
+            showAlert("Erreur", "Impossible de copier le lien: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Génère une URL pour le produit (simulée)
+     */
+    private String getProductUrl() {
+        // Dans une application réelle, ce serait l'URL réelle du produit
+        return "https://www.loopi.tn/produit/" + produit.getId() + "/" +
+                produit.getNom().toLowerCase().replace(" ", "-");
+    }
+
+    /**
+     * Ouvre le navigateur par défaut avec l'URL donnée
+     */
+    private void openBrowser(String url) {
+        try {
+            java.awt.Desktop.getDesktop().browse(java.net.URI.create(url));
+        } catch (Exception e) {
+            showAlert("Erreur", "Impossible d'ouvrir le navigateur: " + e.getMessage());
+        }
     }
 
     private Button createFavorisButton() {

@@ -2,7 +2,10 @@ package edu.Loopi.view;
 
 import edu.Loopi.entities.Produit;
 import edu.Loopi.services.ProduitService;
+import edu.Loopi.services.ImageAdviceService;
+import edu.Loopi.services.AutoDescriptionService;
 import edu.Loopi.tools.SessionManager;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
@@ -24,6 +27,10 @@ public class GalerieView {
     private FlowPane flowPane = new FlowPane(25, 25);
     private String selectedImagePath = "";
 
+    // Services API
+    private ImageAdviceService imageAdviceService = new ImageAdviceService();
+    private AutoDescriptionService autoDescriptionService = new AutoDescriptionService();
+
     // Constantes de couleurs
     private static final String PRIMARY_COLOR = "#4361ee";
     private static final String SUCCESS_COLOR = "#2ecc71";
@@ -37,7 +44,7 @@ public class GalerieView {
     private TextField searchField = new TextField();
     private ComboBox<String> categoryFilter = new ComboBox<>();
     private ComboBox<String> sortCombo = new ComboBox<>();
-    private HBox statsBar = new HBox(15); // Réduit l'espacement
+    private HBox statsBar = new HBox(15);
     private VBox statisticsPanel;
 
     private final Map<String, Integer> categories = new LinkedHashMap<>() {{
@@ -48,21 +55,15 @@ public class GalerieView {
     }};
 
     public VBox getView() {
-        VBox container = new VBox(10); // Réduit l'espacement vertical
+        VBox container = new VBox(10);
         container.setPadding(new Insets(0));
         container.setStyle("-fx-background-color: " + LIGHT_GRAY + ";");
 
-        // En-tête compact
         VBox header = createCompactHeader();
-
-        // Statistiques compactes
         statisticsPanel = createCompactStatisticsPanel();
-
-        // Barre de filtres compacte
         HBox filterBar = createCompactFilterBar();
 
-        // Grille de produits - PLUS GRANDE
-        flowPane.setPadding(new Insets(20, 30, 30, 30)); // Réduit padding top
+        flowPane.setPadding(new Insets(20, 30, 30, 30));
         flowPane.setAlignment(Pos.TOP_CENTER);
         flowPane.setHgap(25);
         flowPane.setVgap(25);
@@ -76,24 +77,21 @@ public class GalerieView {
         scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
 
         container.getChildren().addAll(header, statisticsPanel, filterBar, scroll);
-        VBox.setVgrow(scroll, Priority.ALWAYS); // Le scroll prend tout l'espace restant
+        VBox.setVgrow(scroll, Priority.ALWAYS);
 
         return container;
     }
 
-    /**
-     * Crée un en-tête compact
-     */
     private VBox createCompactHeader() {
-        VBox header = new VBox(8); // Réduit l'espacement
-        header.setPadding(new Insets(15, 40, 10, 40)); // Réduit le padding
+        VBox header = new VBox(8);
+        header.setPadding(new Insets(15, 40, 10, 40));
         header.setStyle("-fx-background: linear-gradient(to right, #4361ee, #3a0ca3);");
 
         HBox topRow = new HBox();
         topRow.setAlignment(Pos.CENTER_LEFT);
 
         Label title = new Label("📦 Ma Galerie");
-        title.setFont(Font.font("System", FontWeight.BOLD, 28)); // Réduit taille police
+        title.setFont(Font.font("System", FontWeight.BOLD, 28));
         title.setTextFill(Color.WHITE);
 
         Region spacer = new Region();
@@ -101,7 +99,7 @@ public class GalerieView {
 
         Button addBtn = new Button("➕ Nouveau");
         addBtn.setStyle("-fx-background-color: white; -fx-text-fill: " + PRIMARY_COLOR + "; " +
-                "-fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 8 20; " + // Réduit padding
+                "-fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 8 20; " +
                 "-fx-background-radius: 25; -fx-cursor: hand; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 8, 0, 0, 2);");
 
         addBtn.setOnMouseEntered(e -> addBtn.setStyle(addBtn.getStyle() + "-fx-scale-x: 1.03; -fx-scale-y: 1.03;"));
@@ -111,54 +109,46 @@ public class GalerieView {
         topRow.getChildren().addAll(title, spacer, addBtn);
 
         Label subtitle = new Label("Gérez vos créations artistiques");
-        subtitle.setFont(Font.font("System", 14)); // Plus petit
+        subtitle.setFont(Font.font("System", 14));
         subtitle.setTextFill(Color.rgb(255, 255, 255, 0.9));
 
         header.getChildren().addAll(topRow, subtitle);
         return header;
     }
 
-    /**
-     * Crée un panneau de statistiques compact
-     */
     private VBox createCompactStatisticsPanel() {
-        VBox panel = new VBox(8); // Réduit l'espacement
-        panel.setPadding(new Insets(10, 40, 5, 40)); // Réduit le padding
+        VBox panel = new VBox(8);
+        panel.setPadding(new Insets(10, 40, 5, 40));
         panel.setStyle("-fx-background-color: white; -fx-border-color: " + BORDER_COLOR + "; -fx-border-width: 0 0 1 0;");
 
         Label statsTitle = new Label("📊 Aperçu");
-        statsTitle.setFont(Font.font("System", FontWeight.BOLD, 16)); // Plus petit
+        statsTitle.setFont(Font.font("System", FontWeight.BOLD, 16));
         statsTitle.setTextFill(Color.web(DARK_COLOR));
 
         statsBar.setAlignment(Pos.CENTER_LEFT);
         statsBar.setPadding(new Insets(0, 0, 5, 0));
-        statsBar.setSpacing(10); // Réduit l'espacement
+        statsBar.setSpacing(10);
 
         panel.getChildren().addAll(statsTitle, statsBar);
         return panel;
     }
 
-    /**
-     * Crée une barre de filtres compacte
-     */
     private HBox createCompactFilterBar() {
-        HBox filterBar = new HBox(15); // Réduit l'espacement
+        HBox filterBar = new HBox(15);
         filterBar.setAlignment(Pos.CENTER_LEFT);
-        filterBar.setPadding(new Insets(10, 40, 10, 40)); // Réduit le padding
+        filterBar.setPadding(new Insets(10, 40, 10, 40));
         filterBar.setStyle("-fx-background-color: white;");
 
-        // Bouton d'actualisation
         Button refreshBtn = new Button("🔄");
         refreshBtn.setStyle("-fx-background-color: " + PRIMARY_COLOR + "; -fx-text-fill: white; " +
                 "-fx-font-size: 16px; -fx-padding: 8 12; -fx-background-radius: 10; -fx-cursor: hand;");
         refreshBtn.setTooltip(new Tooltip("Actualiser"));
         refreshBtn.setOnAction(e -> refreshData());
 
-        // Champ de recherche
         HBox searchBox = new HBox(8);
         searchBox.setAlignment(Pos.CENTER_LEFT);
         searchBox.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 20; -fx-padding: 5 12;");
-        searchBox.setPrefWidth(250); // Plus petit
+        searchBox.setPrefWidth(250);
 
         Label searchIcon = new Label("🔍");
         searchIcon.setStyle("-fx-font-size: 14px;");
@@ -169,11 +159,9 @@ public class GalerieView {
 
         searchBox.getChildren().addAll(searchIcon, searchField);
 
-        // Séparateur
         Separator sep1 = new Separator(javafx.geometry.Orientation.VERTICAL);
         sep1.setStyle("-fx-background-color: " + BORDER_COLOR + ";");
 
-        // Filtre catégorie
         VBox categoryBox = new VBox(2);
         Label catLabel = new Label("Catégorie");
         catLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #6c757d; -fx-font-weight: bold;");
@@ -187,11 +175,9 @@ public class GalerieView {
 
         categoryBox.getChildren().addAll(catLabel, categoryFilter);
 
-        // Séparateur
         Separator sep2 = new Separator(javafx.geometry.Orientation.VERTICAL);
         sep2.setStyle("-fx-background-color: " + BORDER_COLOR + ";");
 
-        // Tri
         VBox sortBox = new VBox(2);
         Label sortLabel = new Label("Trier par");
         sortLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #6c757d; -fx-font-weight: bold;");
@@ -209,7 +195,6 @@ public class GalerieView {
 
         sortBox.getChildren().addAll(sortLabel, sortCombo);
 
-        // Bouton réinitialiser
         Button resetBtn = new Button("✕ Réinitialiser");
         resetBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: " + DANGER_COLOR + "; " +
                 "-fx-border-color: " + DANGER_COLOR + "; -fx-border-radius: 15; -fx-padding: 6 15; " +
@@ -226,7 +211,6 @@ public class GalerieView {
     private void updateStats(List<Produit> list) {
         statsBar.getChildren().clear();
 
-        // Carte Total avec design compact
         statsBar.getChildren().add(createCompactStatCard(
                 "📦 Total",
                 String.valueOf(list.size()),
@@ -234,7 +218,6 @@ public class GalerieView {
                 "Tous vos produits"
         ));
 
-        // Stats par catégorie avec design compact
         for (Map.Entry<String, Integer> entry : categories.entrySet()) {
             long count = list.stream().filter(p -> p.getIdCategorie() == entry.getValue()).count();
             if (count > 0) {
@@ -251,34 +234,33 @@ public class GalerieView {
 
     private String getCategoryColor(int categoryId) {
         switch(categoryId) {
-            case 1: return SUCCESS_COLOR;      // Objets décoratifs - Vert
-            case 2: return WARNING_COLOR;      // Art mural - Orange
-            case 3: return "#9b59b6";          // Mobilier artistique - Violet
-            case 4: return DANGER_COLOR;        // Installations artistiques - Rouge
-            default: return "#6c757d";          // Gris par défaut
+            case 1: return SUCCESS_COLOR;
+            case 2: return WARNING_COLOR;
+            case 3: return "#9b59b6";
+            case 4: return DANGER_COLOR;
+            default: return "#6c757d";
         }
     }
 
     private VBox createCompactStatCard(String label, String value, String color, String tooltip) {
         VBox card = new VBox(3);
         card.setAlignment(Pos.CENTER_LEFT);
-        card.setPadding(new Insets(8, 15, 8, 15)); // Réduit le padding
+        card.setPadding(new Insets(8, 15, 8, 15));
         card.setStyle("-fx-background-color: white; -fx-background-radius: 12; " +
-                "-fx-border-color: " + color + "; -fx-border-width: 0 0 0 3; " + // Bordure plus fine
+                "-fx-border-color: " + color + "; -fx-border-width: 0 0 0 3; " +
                 "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.03), 5, 0, 0, 1);");
-        card.setPrefWidth(150); // Plus petit
+        card.setPrefWidth(150);
 
         Tooltip.install(card, new Tooltip(tooltip));
 
         Label valLbl = new Label(value);
-        valLbl.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: " + color + ";"); // Plus petit
+        valLbl.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: " + color + ";");
 
         Label titleLbl = new Label(label);
-        titleLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #6c757d; -fx-font-weight: 600;"); // Plus petit
+        titleLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #6c757d; -fx-font-weight: 600;");
 
         card.getChildren().addAll(valLbl, titleLbl);
 
-        // Hover effect simplifié
         card.setOnMouseEntered(e ->
                 card.setStyle(card.getStyle() + "-fx-scale-x: 1.01; -fx-scale-y: 1.01; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.08), 8, 0, 0, 2);"));
         card.setOnMouseExited(e ->
@@ -301,7 +283,6 @@ public class GalerieView {
         String selectedCat = categoryFilter.getValue();
         String selectedSort = sortCombo.getValue();
 
-        // Filtrage
         List<Produit> filteredList = allProduits.stream()
                 .filter(p -> p.getNom().toLowerCase().contains(search) ||
                         p.getDescription().toLowerCase().contains(search))
@@ -311,7 +292,6 @@ public class GalerieView {
                 })
                 .collect(Collectors.toList());
 
-        // Tri
         if (selectedSort != null) {
             switch (selectedSort) {
                 case "🔤 A-Z":
@@ -331,10 +311,8 @@ public class GalerieView {
             }
         }
 
-        // Mise à jour des statistiques
         updateStats(allProduits);
 
-        // Affichage des résultats
         if (filteredList.isEmpty()) {
             showEmptyState();
         } else {
@@ -386,7 +364,6 @@ public class GalerieView {
         card.setStyle("-fx-background-color: white; -fx-padding: 0; -fx-background-radius: 18; " +
                 "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 3); -fx-cursor: hand;");
 
-        // Image Container avec overlay
         StackPane imageContainer = new StackPane();
         imageContainer.setPrefSize(260, 160);
         imageContainer.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 18 18 0 0;");
@@ -410,7 +387,6 @@ public class GalerieView {
         }
         imageContainer.getChildren().add(imageView);
 
-        // Badge de catégorie
         String catName = "Inconnue";
         for (Map.Entry<String, Integer> entry : categories.entrySet()) {
             if (entry.getValue() == p.getIdCategorie()) {
@@ -428,18 +404,15 @@ public class GalerieView {
         StackPane.setMargin(categoryBadge, new Insets(8, 0, 0, 8));
         imageContainer.getChildren().add(categoryBadge);
 
-        // Content Container
         VBox contentBox = new VBox(10);
         contentBox.setPadding(new Insets(12, 15, 15, 15));
         contentBox.setAlignment(Pos.CENTER_LEFT);
 
-        // Nom du produit
         Label name = new Label(p.getNom());
         name.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-text-fill: " + DARK_COLOR + ";");
         name.setWrapText(true);
         name.setMaxWidth(220);
 
-        // Description courte
         String shortDesc = p.getDescription().length() > 50
                 ? p.getDescription().substring(0, 50) + "..."
                 : p.getDescription();
@@ -449,12 +422,10 @@ public class GalerieView {
         description.setMinHeight(35);
         description.setMaxHeight(50);
 
-        // === BOUTONS CORRIGÉS ===
         HBox actions = new HBox(10);
         actions.setAlignment(Pos.CENTER);
         actions.setPadding(new Insets(8, 0, 0, 0));
 
-        // Bouton Modifier
         Button editBtn = new Button("Modifier");
         editBtn.setStyle("-fx-background-color: " + PRIMARY_COLOR + "; -fx-text-fill: white; " +
                 "-fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 8 0; -fx-background-radius: 8; " +
@@ -462,7 +433,6 @@ public class GalerieView {
         editBtn.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(editBtn, Priority.ALWAYS);
 
-        // Effet de survol pour le bouton Modifier
         editBtn.setOnMouseEntered(e -> {
             editBtn.setStyle("-fx-background-color: #3651c4; -fx-text-fill: white; " +
                     "-fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 8 0; -fx-background-radius: 8; " +
@@ -475,7 +445,6 @@ public class GalerieView {
         });
         editBtn.setOnAction(e -> showProductForm(p));
 
-        // Bouton Supprimer
         Button deleteBtn = new Button("Supprimer");
         deleteBtn.setStyle("-fx-background-color: white; -fx-text-fill: " + DANGER_COLOR + "; " +
                 "-fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 8 0; -fx-background-radius: 8; " +
@@ -483,7 +452,6 @@ public class GalerieView {
         deleteBtn.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(deleteBtn, Priority.ALWAYS);
 
-        // Effet de survol pour le bouton Supprimer
         deleteBtn.setOnMouseEntered(e -> {
             deleteBtn.setStyle("-fx-background-color: " + DANGER_COLOR + "; -fx-text-fill: white; " +
                     "-fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 8 0; -fx-background-radius: 8; " +
@@ -497,12 +465,10 @@ public class GalerieView {
         deleteBtn.setOnAction(e -> confirmDelete(p));
 
         actions.getChildren().addAll(editBtn, deleteBtn);
-        // === FIN BOUTONS CORRIGÉS ===
 
         contentBox.getChildren().addAll(name, description, actions);
         card.getChildren().addAll(imageContainer, contentBox);
 
-        // Hover Effects sur la carte
         DropShadow shadow = new DropShadow();
         shadow.setColor(Color.rgb(0, 0, 0, 0.1));
         shadow.setRadius(15);
@@ -553,7 +519,6 @@ public class GalerieView {
     }
 
     private void showProductForm(Produit existingProduct) {
-        // [Votre code existant pour le formulaire - inchangé]
         Dialog<Produit> dialog = new Dialog<>();
         dialog.setTitle(existingProduct == null ? "Nouveau Trésor" : "Modifier le Produit");
         dialog.getDialogPane().setStyle("-fx-background-color: #f1f8e9; -fx-border-color: #27ae60; -fx-border-width: 2;");
@@ -563,7 +528,30 @@ public class GalerieView {
 
         VBox mainForm = new VBox(15);
         mainForm.setPadding(new Insets(20));
-        mainForm.setPrefWidth(400);
+        mainForm.setPrefWidth(450);
+
+        // --- SECTION API CONSEILS IMAGE ---
+        VBox apiAdviceSection = new VBox(10);
+        apiAdviceSection.setStyle("-fx-background-color: #e8f4fd; -fx-padding: 15; -fx-background-radius: 10; -fx-border-color: #2196F3; -fx-border-radius: 10;");
+
+        Label apiAdviceTitle = new Label("🤖 Assistance IA");
+        apiAdviceTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-text-fill: #0b5e8c;");
+
+        VBox imageAdviceBox = new VBox(5);
+        Label imageAdviceLabel = new Label("Conseils pour l'image:");
+        imageAdviceLabel.setStyle("-fx-font-weight: bold;");
+
+        TextArea imageAdviceArea = new TextArea();
+        imageAdviceArea.setPrefRowCount(3);
+        imageAdviceArea.setEditable(false);
+        imageAdviceArea.setStyle("-fx-background-color: #f9f9f9; -fx-font-size: 12px;");
+
+        Button checkImageBtn = new Button("🔍 Analyser l'image");
+        checkImageBtn.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 15; -fx-background-radius: 5; -fx-cursor: hand;");
+
+        imageAdviceBox.getChildren().addAll(imageAdviceLabel, imageAdviceArea, checkImageBtn);
+
+        apiAdviceSection.getChildren().addAll(apiAdviceTitle, imageAdviceBox);
 
         // --- 1. APERÇU ---
         VBox groupPreview = new VBox(5);
@@ -600,35 +588,128 @@ public class GalerieView {
         }
         groupCat.getChildren().addAll(lblCat, catCombo);
 
-        // --- 4. DESCRIPTION ---
+        // --- 4. DESCRIPTION AVEC BOUTON IA ---
         VBox groupDesc = new VBox(5);
         Label lblDesc = new Label("Description :");
         lblDesc.setStyle("-fx-font-weight: bold; -fx-text-fill: #2d5a27;");
         TextArea descF = new TextArea(existingProduct != null ? existingProduct.getDescription() : "");
-        descF.setPrefRowCount(3); descF.setWrapText(true);
+        descF.setPrefRowCount(4);
+        descF.setWrapText(true);
         descF.setStyle("-fx-background-radius: 10;");
-        groupDesc.getChildren().addAll(lblDesc, descF);
+
+        HBox descActions = new HBox(10);
+        descActions.setAlignment(Pos.CENTER_RIGHT);
+
+        Button generateDescBtn = new Button("✨ Générer description avec IA");
+        generateDescBtn.setStyle("-fx-background-color: #9C27B0; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 15; -fx-background-radius: 5; -fx-cursor: hand;");
+
+        groupDesc.getChildren().addAll(lblDesc, descF, descActions);
+        descActions.getChildren().add(generateDescBtn);
 
         // --- 5. MÉDIA ---
         VBox groupMedia = new VBox(5);
         Button fileBtn = new Button("♻️ Remplacer l'image");
         fileBtn.setMaxWidth(Double.MAX_VALUE);
-        fileBtn.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 10;");
+        fileBtn.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 10; -fx-cursor: hand;");
         groupMedia.getChildren().addAll(new Label("Média :"), fileBtn);
 
-        mainForm.getChildren().addAll(groupPreview, groupNom, groupCat, groupDesc, groupMedia);
+        mainForm.getChildren().addAll(apiAdviceSection, groupPreview, groupNom, groupCat, groupDesc, groupMedia);
 
         if (existingProduct != null && existingProduct.getImage() != null) {
             File file = new File(existingProduct.getImage());
             if (file.exists()) preview.setImage(new Image(file.toURI().toString()));
         }
 
+        // Action pour le bouton d'analyse d'image
+        checkImageBtn.setOnAction(e -> {
+            if (selectedImagePath.isEmpty() && existingProduct != null) {
+                selectedImagePath = existingProduct.getImage();
+            }
+
+            if (!selectedImagePath.isEmpty()) {
+                checkImageBtn.setDisable(true);
+                checkImageBtn.setText("⏳ Analyse en cours...");
+
+                new Thread(() -> {
+                    Map<String, String> advice = imageAdviceService.getImageAdvice(selectedImagePath);
+
+                    Platform.runLater(() -> {
+                        StringBuilder adviceText = new StringBuilder();
+
+                        if (advice.containsKey("quality")) {
+                            adviceText.append("📊 Qualité: ").append(advice.get("quality")).append("\n\n");
+                        }
+                        if (advice.containsKey("composition")) {
+                            adviceText.append("🖼️ Composition: ").append(advice.get("composition")).append("\n\n");
+                        }
+                        if (advice.containsKey("recommendations")) {
+                            adviceText.append("💡 Recommandations:\n").append(advice.get("recommendations"));
+                        } else if (advice.containsKey("tips")) {
+                            adviceText.append("💡 ").append(advice.get("tips"));
+                        }
+
+                        imageAdviceArea.setText(adviceText.toString());
+                        checkImageBtn.setDisable(false);
+                        checkImageBtn.setText("🔍 Analyser l'image");
+                    });
+                }).start();
+            } else {
+                showAlert("Information", "Veuillez d'abord sélectionner une image");
+            }
+        });
+
+        // Action pour le bouton de génération de description
+        generateDescBtn.setOnAction(e -> {
+            String productName = nomF.getText().trim();
+            if (productName.isEmpty()) {
+                showAlert("Information", "Veuillez d'abord saisir un nom de produit");
+                return;
+            }
+
+            String category = catCombo.getValue();
+
+            generateDescBtn.setDisable(true);
+            generateDescBtn.setText("⏳ Génération...");
+
+            new Thread(() -> {
+                String description = autoDescriptionService.generateDescription(productName, category, "");
+
+                Platform.runLater(() -> {
+                    descF.setText(description);
+                    generateDescBtn.setDisable(false);
+                    generateDescBtn.setText("✨ Générer description avec IA");
+                });
+            }).start();
+        });
+
         fileBtn.setOnAction(e -> {
             FileChooser fc = new FileChooser();
+            fc.getExtensionFilters().addAll(
+                    new FileChooser.ExtensionFilter("Images", "*.jpg", "*.jpeg", "*.png", "*.gif")
+            );
             File f = fc.showOpenDialog(null);
             if (f != null) {
                 selectedImagePath = f.getAbsolutePath();
                 preview.setImage(new Image(f.toURI().toString()));
+
+                imageAdviceArea.setText("Analyse en cours...");
+
+                new Thread(() -> {
+                    Map<String, String> advice = imageAdviceService.getImageAdvice(selectedImagePath);
+
+                    Platform.runLater(() -> {
+                        StringBuilder adviceText = new StringBuilder();
+
+                        if (advice.containsKey("quality")) {
+                            adviceText.append("📊 Qualité: ").append(advice.get("quality")).append("\n\n");
+                        }
+                        if (advice.containsKey("tips")) {
+                            adviceText.append("💡 ").append(advice.get("tips"));
+                        }
+
+                        imageAdviceArea.setText(adviceText.toString());
+                    });
+                }).start();
             }
         });
 

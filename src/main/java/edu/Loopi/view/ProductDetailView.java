@@ -6,7 +6,10 @@ import edu.Loopi.entities.User;
 import edu.Loopi.services.FeedbackService;
 import edu.Loopi.services.ProduitService;
 import edu.Loopi.services.FavorisService;
+import edu.Loopi.services.SentimentAnalysisService;
+import edu.Loopi.services.ProductChatbotService;
 import edu.Loopi.tools.SessionManager;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -30,9 +33,18 @@ public class ProductDetailView {
     private FeedbackService feedbackService = new FeedbackService();
     private ProduitService produitService = new ProduitService();
     private FavorisService favorisService = new FavorisService();
+
+    // Services API
+    private SentimentAnalysisService sentimentService = new SentimentAnalysisService();
+    private ProductChatbotService chatbotService = new ProductChatbotService();
+
     private int selectedRating = 0;
     private Stage stage;
     private boolean estFavoris = false;
+
+    // Composants chatbot
+    private VBox chatbotMessages;
+    private TextField chatInput;
 
     private final Map<Integer, String> categoryNames = new HashMap<>() {{
         put(1, "Objets décoratifs");
@@ -49,38 +61,26 @@ public class ProductDetailView {
     public void show() {
         this.stage = new Stage();
 
-        // Vérifier si le produit est déjà en favoris
         estFavoris = favorisService.estDansFavoris(currentUser.getId(), produit.getId());
 
-        // Conteneur principal avec padding
         VBox mainContainer = new VBox(20);
         mainContainer.setPadding(new Insets(20));
         mainContainer.setStyle("-fx-background-color: #f5f5f5;");
 
-        // Barre du haut
         HBox topBar = createTopBar();
-
-        // === SECTION PRODUIT ===
         VBox productSection = createProductSection();
-
-        // === SECTION RESEAUX SOCIAUX ===
         HBox socialShareSection = createSocialShareSection();
-
-        // === SECTION FEEDBACK ===
+        VBox chatbotSection = createChatbotSection();
         VBox feedbackSection = createFeedbackSection();
-
-        // === PRODUITS SIMILAIRES ===
         VBox similarSection = createSimilarProductsSection();
 
-        // Ajout de toutes les sections au conteneur principal
-        mainContainer.getChildren().addAll(topBar, productSection, socialShareSection, feedbackSection, similarSection);
+        mainContainer.getChildren().addAll(topBar, productSection, socialShareSection, chatbotSection, feedbackSection, similarSection);
 
-        // ScrollPane pour permettre le défilement
         ScrollPane scrollPane = new ScrollPane(mainContainer);
         scrollPane.setFitToWidth(true);
         scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
 
-        Scene scene = new Scene(scrollPane, 900, 800);
+        Scene scene = new Scene(scrollPane, 900, 900);
         stage.setScene(scene);
         stage.setTitle("Détails du Produit - " + produit.getNom());
         stage.show();
@@ -105,7 +105,6 @@ public class ProductDetailView {
         VBox productSection = new VBox(20);
         productSection.setStyle("-fx-background-color: white; -fx-padding: 20; -fx-background-radius: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);");
 
-        // Image du produit
         StackPane imageContainer = new StackPane();
         imageContainer.setStyle("-fx-background-color: #fafafa; -fx-background-radius: 10;");
         imageContainer.setPrefHeight(300);
@@ -129,7 +128,6 @@ public class ProductDetailView {
         }
         imageContainer.getChildren().add(imageView);
 
-        // Titre et bouton favoris
         HBox titleBox = new HBox(10);
         titleBox.setAlignment(Pos.CENTER_LEFT);
 
@@ -153,9 +151,6 @@ public class ProductDetailView {
         return productSection;
     }
 
-    /**
-     * Crée la section de partage sur les réseaux sociaux
-     */
     private HBox createSocialShareSection() {
         HBox socialSection = new HBox(20);
         socialSection.setAlignment(Pos.CENTER_LEFT);
@@ -165,23 +160,18 @@ public class ProductDetailView {
         Label shareLabel = new Label("Partager sur :");
         shareLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #2c3e50;");
 
-        // Bouton Facebook
         Button facebookBtn = createSocialButton("Facebook", "#1877f2", "F");
         facebookBtn.setOnAction(e -> shareOnFacebook());
 
-        // Bouton Twitter
         Button twitterBtn = createSocialButton("Twitter", "#1da1f2", "🐦");
         twitterBtn.setOnAction(e -> shareOnTwitter());
 
-        // Bouton WhatsApp
         Button whatsappBtn = createSocialButton("WhatsApp", "#25d366", "📱");
         whatsappBtn.setOnAction(e -> shareOnWhatsApp());
 
-        // Bouton LinkedIn
         Button linkedinBtn = createSocialButton("LinkedIn", "#0077b5", "in");
         linkedinBtn.setOnAction(e -> shareOnLinkedIn());
 
-        // Bouton Copier le lien
         Button copyBtn = createSocialButton("Copier le lien", "#6c757d", "📋");
         copyBtn.setOnAction(e -> copyLinkToClipboard());
 
@@ -192,16 +182,12 @@ public class ProductDetailView {
         return socialSection;
     }
 
-    /**
-     * Crée un bouton de réseau social stylisé
-     */
     private Button createSocialButton(String text, String color, String icon) {
         Button btn = new Button(icon + " " + text);
         btn.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; " +
                 "-fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 8 15; " +
                 "-fx-background-radius: 20; -fx-cursor: hand;");
 
-        // Animation au survol
         ScaleTransition st = new ScaleTransition(Duration.millis(200), btn);
         st.setToX(1.05);
         st.setToY(1.05);
@@ -225,9 +211,6 @@ public class ProductDetailView {
         return btn;
     }
 
-    /**
-     * Partage sur Facebook
-     */
     private void shareOnFacebook() {
         try {
             String url = "https://www.facebook.com/sharer/sharer.php?u=" +
@@ -239,9 +222,6 @@ public class ProductDetailView {
         }
     }
 
-    /**
-     * Partage sur Twitter
-     */
     private void shareOnTwitter() {
         try {
             String text = "Découvrez " + produit.getNom() + " sur LOOPI !";
@@ -255,9 +235,6 @@ public class ProductDetailView {
         }
     }
 
-    /**
-     * Partage sur WhatsApp
-     */
     private void shareOnWhatsApp() {
         try {
             String text = "Découvrez " + produit.getNom() + " sur LOOPI !\n" + getProductUrl();
@@ -270,9 +247,6 @@ public class ProductDetailView {
         }
     }
 
-    /**
-     * Partage sur LinkedIn
-     */
     private void shareOnLinkedIn() {
         try {
             String url = "https://www.linkedin.com/sharing/share-offsite/?url=" +
@@ -284,9 +258,6 @@ public class ProductDetailView {
         }
     }
 
-    /**
-     * Copie le lien du produit dans le presse-papiers
-     */
     private void copyLinkToClipboard() {
         try {
             javafx.scene.input.Clipboard clipboard = javafx.scene.input.Clipboard.getSystemClipboard();
@@ -299,18 +270,11 @@ public class ProductDetailView {
         }
     }
 
-    /**
-     * Génère une URL pour le produit (simulée)
-     */
     private String getProductUrl() {
-        // Dans une application réelle, ce serait l'URL réelle du produit
         return "https://www.loopi.tn/produit/" + produit.getId() + "/" +
                 produit.getNom().toLowerCase().replace(" ", "-");
     }
 
-    /**
-     * Ouvre le navigateur par défaut avec l'URL donnée
-     */
     private void openBrowser(String url) {
         try {
             java.awt.Desktop.getDesktop().browse(java.net.URI.create(url));
@@ -323,10 +287,8 @@ public class ProductDetailView {
         Button favBtn = new Button();
         favBtn.setStyle("-fx-background-color: transparent; -fx-font-size: 28px; -fx-cursor: hand;");
 
-        // Mettre à jour le texte selon l'état
         updateFavorisButton(favBtn);
 
-        // Animation au survol
         ScaleTransition st = new ScaleTransition(Duration.millis(200), favBtn);
         st.setToX(1.2);
         st.setToY(1.2);
@@ -341,15 +303,12 @@ public class ProductDetailView {
             st.play();
         });
 
-        // Action du bouton
         favBtn.setOnAction(e -> {
             if (estFavoris) {
-                // Retirer des favoris
                 favorisService.supprimerFavoris(currentUser.getId(), produit.getId());
                 estFavoris = false;
                 showAlert("Succès", "Produit retiré des favoris ❌");
             } else {
-                // Ajouter aux favoris
                 favorisService.ajouterFavoris(currentUser.getId(), produit.getId());
                 estFavoris = true;
                 showAlert("Succès", "Produit ajouté aux favoris ❤️");
@@ -362,32 +321,177 @@ public class ProductDetailView {
 
     private void updateFavorisButton(Button btn) {
         if (estFavoris) {
-            btn.setText("❤️"); // Cœur rouge plein
+            btn.setText("❤️");
             btn.setStyle("-fx-background-color: transparent; -fx-font-size: 28px; -fx-text-fill: #e74c3c; -fx-cursor: hand;");
         } else {
-            btn.setText("❤️"); // On garde le même symbole mais en gris
-            btn.setStyle("-fx-background-color: transparent; -fx-font-size: 28px; -fx-text-fill: #95a5a6; -fx-cursor: hand;"); // Gris
+            btn.setText("❤️");
+            btn.setStyle("-fx-background-color: transparent; -fx-font-size: 28px; -fx-text-fill: #95a5a6; -fx-cursor: hand;");
         }
+    }
+
+    private VBox createChatbotSection() {
+        VBox chatbotSection = new VBox(15);
+        chatbotSection.setStyle("-fx-background-color: white; -fx-padding: 20; -fx-background-radius: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);");
+
+        HBox header = new HBox(10);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        Label icon = new Label("🤖");
+        icon.setStyle("-fx-font-size: 24px;");
+
+        Label title = new Label("Assistant Produit");
+        title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        header.getChildren().addAll(icon, title, spacer);
+
+        chatbotMessages = new VBox(10);
+        chatbotMessages.setPadding(new Insets(10));
+        chatbotMessages.setStyle("-fx-background-color: #f8f9fa; -fx-background-radius: 8;");
+
+        VBox welcomeMsg = createChatbotMessage(
+                "Bonjour ! Je suis l'assistant virtuel pour " + produit.getNom() +
+                        ". Posez-moi des questions sur ses avantages écologiques, son entretien, sa durabilité, etc.",
+                true
+        );
+        chatbotMessages.getChildren().add(welcomeMsg);
+
+        ScrollPane messagesScroll = new ScrollPane(chatbotMessages);
+        messagesScroll.setFitToWidth(true);
+        messagesScroll.setPrefHeight(200);
+        messagesScroll.setStyle("-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: #e0e0e0; -fx-border-radius: 8;");
+
+        HBox inputBox = new HBox(10);
+        inputBox.setAlignment(Pos.CENTER);
+        inputBox.setPadding(new Insets(10, 0, 0, 0));
+
+        chatInput = new TextField();
+        chatInput.setPromptText("Posez votre question...");
+        chatInput.setPrefWidth(400);
+        chatInput.setStyle("-fx-background-radius: 20; -fx-padding: 10 15; -fx-border-color: #e0e0e0; -fx-border-radius: 20;");
+
+        ComboBox<String> quickQuestions = new ComboBox<>();
+        quickQuestions.getItems().addAll(
+                "Quels sont ses avantages écologiques ?",
+                "Est-ce un produit durable ?",
+                "Comment l'entretenir ?",
+                "Est-ce un produit unique ?",
+                "Quels matériaux sont utilisés ?"
+        );
+        quickQuestions.setPromptText("Questions rapides");
+        quickQuestions.setStyle("-fx-background-radius: 20; -fx-padding: 5 10;");
+        quickQuestions.setOnAction(e -> {
+            if (quickQuestions.getValue() != null) {
+                chatInput.setText(quickQuestions.getValue());
+                sendChatMessage();
+                quickQuestions.setValue(null);
+            }
+        });
+
+        Button sendBtn = new Button("Envoyer");
+        sendBtn.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 20; -fx-background-radius: 20; -fx-cursor: hand;");
+        sendBtn.setOnAction(e -> sendChatMessage());
+
+        chatInput.setOnAction(e -> sendChatMessage());
+
+        inputBox.getChildren().addAll(chatInput, quickQuestions, sendBtn);
+
+        chatbotSection.getChildren().addAll(header, messagesScroll, inputBox);
+        return chatbotSection;
+    }
+
+    private VBox createChatbotMessage(String text, boolean isBot) {
+        VBox messageBox = new VBox(5);
+        messageBox.setPadding(new Insets(8, 12, 8, 12));
+
+        HBox header = new HBox(5);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        Label senderIcon = new Label(isBot ? "🤖" : "👤");
+        senderIcon.setStyle("-fx-font-size: 14px;");
+
+        Label senderName = new Label(isBot ? "Assistant" : "Vous");
+        senderName.setStyle("-fx-font-weight: bold; -fx-font-size: 12px; -fx-text-fill: " + (isBot ? "#2196F3" : "#4CAF50") + ";");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Label time = new Label(java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")));
+        time.setStyle("-fx-font-size: 10px; -fx-text-fill: #999;");
+
+        header.getChildren().addAll(senderIcon, senderName, spacer, time);
+
+        Label message = new Label(text);
+        message.setWrapText(true);
+        message.setStyle("-fx-font-size: 13px; -fx-padding: 5 0 0 20;");
+
+        messageBox.getChildren().addAll(header, message);
+
+        String bgColor = isBot ? "#E3F2FD" : "#E8F5E8";
+
+        messageBox.setStyle("-fx-background-color: " + bgColor + "; -fx-background-radius: 10; -fx-padding: 10;");
+
+        return messageBox;
+    }
+
+    private void sendChatMessage() {
+        String question = chatInput.getText().trim();
+        if (question.isEmpty()) return;
+
+        VBox userMsg = createChatbotMessage(question, false);
+        chatbotMessages.getChildren().add(userMsg);
+
+        chatInput.clear();
+
+        VBox typingMsg = new VBox(5);
+        typingMsg.setPadding(new Insets(8, 12, 8, 12));
+        typingMsg.setStyle("-fx-background-color: #E3F2FD; -fx-background-radius: 10; -fx-padding: 10;");
+
+        HBox typingHeader = new HBox(5);
+        typingHeader.setAlignment(Pos.CENTER_LEFT);
+
+        Label typingIcon = new Label("🤖");
+        typingIcon.setStyle("-fx-font-size: 14px;");
+
+        Label typingName = new Label("Assistant tape...");
+        typingName.setStyle("-fx-font-style: italic; -fx-text-fill: #666; -fx-font-size: 11px;");
+
+        typingHeader.getChildren().addAll(typingIcon, typingName);
+        typingMsg.getChildren().add(typingHeader);
+
+        chatbotMessages.getChildren().add(typingMsg);
+
+        chatbotMessages.layout();
+
+        new Thread(() -> {
+            String response = chatbotService.askAboutProduct(produit, question);
+
+            Platform.runLater(() -> {
+                chatbotMessages.getChildren().remove(typingMsg);
+
+                VBox botMsg = createChatbotMessage(response, true);
+                chatbotMessages.getChildren().add(botMsg);
+            });
+        }).start();
     }
 
     private VBox createFeedbackSection() {
         VBox feedbackSection = new VBox(20);
         feedbackSection.setStyle("-fx-background-color: white; -fx-padding: 20; -fx-background-radius: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);");
 
-        // En-tête avec note moyenne
         HBox ratingHeader = createRatingHeader();
 
         Label feedbackTitle = new Label("Avis des clients");
         feedbackTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;");
 
-        // Formulaire d'avis
         VBox formBox = new VBox(10);
         formBox.setStyle("-fx-background-color: #f8f9fa; -fx-padding: 15; -fx-background-radius: 5;");
 
         Label rateLabel = new Label("Donnez votre avis :");
         rateLabel.setStyle("-fx-font-weight: bold;");
 
-        // Étoiles
         HBox starBox = new HBox(5);
         for (int i = 1; i <= 5; i++) {
             final int rating = i;
@@ -412,7 +516,6 @@ public class ProductDetailView {
 
         formBox.getChildren().addAll(rateLabel, starBox, commentArea, submitBtn);
 
-        // Liste des commentaires
         VBox commentsList = new VBox(10);
 
         List<Feedback> feedbacks = feedbackService.getFeedbacksByProduct(produit.getId());
@@ -511,12 +614,10 @@ public class ProductDetailView {
 
         feedbackService.addFeedback(feedback);
 
-        // Reset
         selectedRating = 0;
         commentArea.clear();
         updateStars(starBox);
 
-        // Refresh
         refresh();
     }
 
@@ -551,7 +652,27 @@ public class ProductDetailView {
 
         card.getChildren().addAll(header, comment);
 
-        // Boutons pour ses propres commentaires
+        // Analyse des sentiments
+        var sentiment = sentimentService.analyzeSentiment(f.getCommentaire());
+
+        HBox sentimentBox = new HBox(5);
+        sentimentBox.setAlignment(Pos.CENTER_LEFT);
+        sentimentBox.setPadding(new Insets(5, 0, 0, 0));
+
+        String sentimentText = (String) sentiment.get("sentiment");
+        String sentimentEmoji = (String) sentiment.get("emoji");
+        String sentimentColor = (String) sentiment.get("color");
+        double score = (double) sentiment.get("score");
+        String confiance = (String) sentiment.get("confiance");
+
+        Label sentimentLabel = new Label(sentimentEmoji + " " + sentimentText +
+                " (" + String.format("%.0f", score * 100) + "%) - Confiance " + confiance);
+        sentimentLabel.setStyle("-fx-background-color: " + sentimentColor + "20; -fx-text-fill: " + sentimentColor + "; " +
+                "-fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 3 10; -fx-background-radius: 12;");
+
+        sentimentBox.getChildren().add(sentimentLabel);
+        card.getChildren().add(sentimentBox);
+
         if (f.getIdUser() == currentUser.getId()) {
             HBox actions = new HBox(10);
             actions.setAlignment(Pos.CENTER_RIGHT);

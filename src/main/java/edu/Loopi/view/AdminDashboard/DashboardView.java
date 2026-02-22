@@ -10,12 +10,12 @@ import javafx.scene.Node;
 import javafx.scene.chart.*;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
-import javafx.scene.image.ImageView;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -139,13 +139,13 @@ public class DashboardView {
         VBox totalCard = createStatCard("👥", "Total", String.format("%,d", totalUsers),
                 "+" + newThisMonth + " ce mois", isDarkMode);
         VBox activeCard = createStatCard("✅", "Actifs ajd", String.format("%,d", activeToday),
-                String.format("%.1f%%", (activeToday * 100.0 / totalUsers)), isDarkMode);
+                String.format("%.1f%%", totalUsers > 0 ? (activeToday * 100.0 / totalUsers) : 0), isDarkMode);
         VBox adminsCard = createStatCard("👑", "Admins", String.format("%,d", roleStats[0]),
-                String.format("%.1f%%", (roleStats[0] * 100.0 / totalUsers)), isDarkMode);
+                String.format("%.1f%%", totalUsers > 0 ? (roleStats[0] * 100.0 / totalUsers) : 0), isDarkMode);
         VBox organizersCard = createStatCard("🎯", "Organisateurs", String.format("%,d", roleStats[1]),
-                String.format("%.1f%%", (roleStats[1] * 100.0 / totalUsers)), isDarkMode);
+                String.format("%.1f%%", totalUsers > 0 ? (roleStats[1] * 100.0 / totalUsers) : 0), isDarkMode);
         VBox participantsCard = createStatCard("😊", "Participants", String.format("%,d", roleStats[2]),
-                String.format("%.1f%%", (roleStats[2] * 100.0 / totalUsers)), isDarkMode);
+                String.format("%.1f%%", totalUsers > 0 ? (roleStats[2] * 100.0 / totalUsers) : 0), isDarkMode);
 
         cards.getChildren().addAll(totalCard, activeCard, adminsCard, organizersCard, participantsCard);
         return cards;
@@ -739,7 +739,8 @@ public class DashboardView {
         Button viewAllBtn = new Button("Voir tout →");
         viewAllBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: " + adminDashboard.getAccentColor() +
                 "; -fx-font-weight: 600; -fx-cursor: hand; -fx-font-size: 13px;");
-        viewAllBtn.setOnAction(e -> adminDashboard.showUserManagementViewInCenter());
+        // CORRECTION: Remplacer showUserManagementViewInCenter() par showUserManagementView()
+        viewAllBtn.setOnAction(e -> adminDashboard.showUserManagementView());
 
         header.getChildren().addAll(headerText, viewAllBtn);
 
@@ -788,10 +789,17 @@ public class DashboardView {
                     setText(null);
                 } else {
                     User user = getTableView().getItems().get(getIndex());
+                    VBox vbox = new VBox(2);
                     Label nameLabel = new Label(user.getNomComplet());
                     nameLabel.setFont(Font.font("System", FontWeight.MEDIUM, 13));
                     nameLabel.setTextFill(Color.web(adminDashboard.getTextColor()));
-                    setGraphic(nameLabel);
+
+                    Label emailLabel = new Label(user.getEmail());
+                    emailLabel.setFont(Font.font("System", FontWeight.NORMAL, 11));
+                    emailLabel.setTextFill(Color.web(adminDashboard.getTextColorMuted()));
+
+                    vbox.getChildren().addAll(nameLabel, emailLabel);
+                    setGraphic(vbox);
                 }
             }
         });
@@ -881,7 +889,6 @@ public class DashboardView {
         card.getChildren().addAll(header, userTable);
         return card;
     }
-
 
     private String getRoleInFrench(String role) {
         if (role == null) return "";

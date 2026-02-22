@@ -273,6 +273,7 @@ public class UserDashboard {
     }
 
     // ============ MÉTHODES DE NAVIGATION ============
+// Dans UserDashboard.java, assurez-vous que les méthodes sont correctes :
 
     private void showEvents() {
         try {

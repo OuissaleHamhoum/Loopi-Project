@@ -4,8 +4,10 @@ import edu.Loopi.entities.Event;
 import edu.Loopi.entities.User;
 import edu.Loopi.services.AIImageGenerationService;
 import edu.Loopi.services.EventService;
+import edu.Loopi.services.NotificationService;
 import javafx.animation.ScaleTransition;
 import javafx.application.Platform;
+import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -24,8 +26,6 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 
 import java.io.*;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.file.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -39,6 +39,7 @@ public class EventView {
     private VBox mainLayout;
     private FlowPane cardsContainer;
     private EventService eventService = new EventService();
+    private NotificationService notificationService = new NotificationService();
     private List<Event> allEvents;
     private String selectedImagePath = "";
 
@@ -52,56 +53,58 @@ public class EventView {
     private static final String BORDER_COLOR = "#e9ecef";
     private static final String AI_COLOR = "#9b59b6";
 
-    // 📁 DOSSIER DANS resources/
+    // Chemins des dossiers d'upload
     private static final String PROJECT_ROOT = System.getProperty("user.dir");
-    private static final String IMAGE_STORAGE_DIR = "src" + File.separator + "main" + File.separator +
-            "resources" + File.separator + "uploads" + File.separator +
-            "events" + File.separator;
-    private static final String FULL_IMAGE_PATH = PROJECT_ROOT + File.separator + IMAGE_STORAGE_DIR;
+    private static final String RESOURCES_DIR = "src" + File.separator + "main" + File.separator +
+            "resources" + File.separator;
+    private static final String UPLOADS_DIR = RESOURCES_DIR + "uploads" + File.separator;
+    private static final String EVENTS_DIR = UPLOADS_DIR + "events" + File.separator;
+    private static final String AI_DIR = UPLOADS_DIR + "ai_generated" + File.separator;
 
-    private static final String AI_IMAGE_STORAGE_DIR = "src" + File.separator + "main" + File.separator +
-            "resources" + File.separator + "uploads" + File.separator +
-            "ai_generated" + File.separator;
-    private static final String FULL_AI_IMAGE_PATH = PROJECT_ROOT + File.separator + AI_IMAGE_STORAGE_DIR;
+    private static final String FULL_EVENTS_PATH = PROJECT_ROOT + File.separator + EVENTS_DIR;
+    private static final String FULL_AI_PATH = PROJECT_ROOT + File.separator + AI_DIR;
 
-    // 📁 Chemin pour la BDD
-    private static final String DB_IMAGE_PATH = "uploads/events/";
-    private static final String DB_AI_IMAGE_PATH = "uploads/ai_generated/";
+    private static final String DB_EVENTS_PATH = "uploads/events/";
+    private static final String DB_AI_PATH = "uploads/ai_generated/";
 
     // Composants pour les filtres
     private TextField searchField = new TextField();
     private ComboBox<String> statusFilter = new ComboBox<>();
+    private ComboBox<String> validationFilter = new ComboBox<>();
     private ComboBox<String> sortCombo = new ComboBox<>();
     private HBox statsBar = new HBox(15);
+    private Label messageInfoLabel;
 
     public EventView(User user) {
         this.currentUser = user;
         this.mainLayout = new VBox(20);
-
         createUploadDirectories();
         createView();
         loadData();
     }
 
     private void createUploadDirectories() {
-        // Créer le dossier events
-        File eventsDir = new File(FULL_IMAGE_PATH);
-        if (!eventsDir.exists()) {
-            eventsDir.mkdirs();
-            System.out.println("✅ Dossier créé: " + FULL_IMAGE_PATH);
-        }
+        try {
+            File eventsDir = new File(FULL_EVENTS_PATH);
+            File aiDir = new File(FULL_AI_PATH);
 
-        // Créer le dossier ai_generated
-        File aiDir = new File(FULL_AI_IMAGE_PATH);
-        if (!aiDir.exists()) {
-            aiDir.mkdirs();
-            System.out.println("✅ Dossier créé: " + FULL_AI_IMAGE_PATH);
+            if (!eventsDir.exists()) {
+                boolean created = eventsDir.mkdirs();
+                System.out.println("📁 Dossier events " + (created ? "créé" : "existe déjà") + ": " + FULL_EVENTS_PATH);
+            }
+
+            if (!aiDir.exists()) {
+                boolean created = aiDir.mkdirs();
+                System.out.println("📁 Dossier AI " + (created ? "créé" : "existe déjà") + ": " + FULL_AI_PATH);
+            }
+        } catch (Exception e) {
+            System.err.println("❌ Erreur création dossiers: " + e.getMessage());
         }
     }
 
     private String copyImageToStorage(File sourceFile) {
         try {
-            File directory = new File(FULL_IMAGE_PATH);
+            File directory = new File(FULL_EVENTS_PATH);
             if (!directory.exists()) directory.mkdirs();
 
             String extension = "";
@@ -110,14 +113,14 @@ public class EventView {
             extension = (dotIndex > 0) ? fileName.substring(dotIndex) : ".jpg";
 
             String uniqueFileName = "event_" + UUID.randomUUID().toString() + extension;
-            String fullPath = FULL_IMAGE_PATH + uniqueFileName;
+            String fullPath = FULL_EVENTS_PATH + uniqueFileName;
 
             Files.copy(sourceFile.toPath(), Paths.get(fullPath), StandardCopyOption.REPLACE_EXISTING);
 
             File savedFile = new File(fullPath);
             if (savedFile.exists()) {
                 System.out.println("✅ Image copiée: " + fullPath);
-                return DB_IMAGE_PATH + uniqueFileName;
+                return DB_EVENTS_PATH + uniqueFileName;
             }
             return null;
 
@@ -135,17 +138,19 @@ public class EventView {
         try {
             String fileName = imagePath.substring(imagePath.lastIndexOf('/') + 1);
 
-            // Essayer d'abord dans le dossier events/
-            File imgFile = new File(FULL_IMAGE_PATH + fileName);
+            String[] possiblePaths = {
+                    FULL_EVENTS_PATH + fileName,
+                    FULL_AI_PATH + fileName,
+                    PROJECT_ROOT + File.separator + "src" + File.separator + "main" + File.separator +
+                            "resources" + File.separator + imagePath.replace('/', File.separatorChar)
+            };
 
-            // Si pas trouvé, essayer dans le dossier ai_generated/
-            if (!imgFile.exists()) {
-                imgFile = new File(FULL_AI_IMAGE_PATH + fileName);
-            }
-
-            if (imgFile.exists()) {
-                Image image = new Image(imgFile.toURI().toString(), true);
-                return image;
+            for (String path : possiblePaths) {
+                File imgFile = new File(path);
+                if (imgFile.exists()) {
+                    Image image = new Image(imgFile.toURI().toString(), true);
+                    return image;
+                }
             }
         } catch (Exception e) {
             System.err.println("❌ Exception lors du chargement: " + e.getMessage());
@@ -159,6 +164,14 @@ public class EventView {
         mainLayout.setStyle("-fx-background-color: white; -fx-background-radius: 12;");
 
         VBox header = createHeader();
+
+        // Message d'information
+        messageInfoLabel = new Label("");
+        messageInfoLabel.setFont(Font.font("System", FontWeight.NORMAL, 13));
+        messageInfoLabel.setTextFill(Color.web("#059669"));
+        messageInfoLabel.setPadding(new Insets(5, 40, 0, 40));
+        messageInfoLabel.setVisible(false);
+
         statsBar.setAlignment(Pos.CENTER_LEFT);
         statsBar.setPadding(new Insets(20, 40, 10, 40));
         statsBar.setStyle("-fx-background-color: " + LIGHT_GRAY + ";");
@@ -176,7 +189,7 @@ public class EventView {
         scrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent; -fx-border-color: null;");
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
 
-        mainLayout.getChildren().addAll(header, statsBar, filterBar, scrollPane);
+        mainLayout.getChildren().addAll(header, messageInfoLabel, statsBar, filterBar, scrollPane);
     }
 
     private VBox createHeader() {
@@ -202,7 +215,7 @@ public class EventView {
 
         topRow.getChildren().addAll(title, spacer, addBtn);
 
-        Label subtitle = new Label("Gérez vos événements écologiques et suivez les inscriptions");
+        Label subtitle = new Label("Gérez vos événements écologiques et suivez leur validation");
         subtitle.setFont(Font.font("System", 14));
         subtitle.setTextFill(Color.rgb(255, 255, 255, 0.9));
 
@@ -254,6 +267,21 @@ public class EventView {
         Separator sep2 = new Separator(javafx.geometry.Orientation.VERTICAL);
         sep2.setStyle("-fx-background-color: " + BORDER_COLOR + ";");
 
+        VBox validationBox = new VBox(2);
+        Label validationLabel = new Label("Validation");
+        validationLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #6c757d; -fx-font-weight: bold;");
+
+        validationFilter.getItems().addAll("Tous", "En attente", "Approuvés", "Refusés");
+        validationFilter.setValue("Tous");
+        validationFilter.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 10; -fx-padding: 6 12; -fx-font-size: 12px;");
+        validationFilter.setPrefWidth(120);
+        validationFilter.setOnAction(e -> applyFilters());
+
+        validationBox.getChildren().addAll(validationLabel, validationFilter);
+
+        Separator sep3 = new Separator(javafx.geometry.Orientation.VERTICAL);
+        sep3.setStyle("-fx-background-color: " + BORDER_COLOR + ";");
+
         VBox sortBox = new VBox(2);
         Label sortLabel = new Label("Trier par");
         sortLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #6c757d; -fx-font-weight: bold;");
@@ -279,12 +307,21 @@ public class EventView {
                 "-fx-cursor: hand; -fx-font-weight: bold; -fx-font-size: 12px;");
         resetBtn.setOnAction(e -> resetFilters());
 
-        filterBar.getChildren().addAll(refreshBtn, searchBox, sep1, statusBox, sep2, sortBox, spacer, resetBtn);
+        filterBar.getChildren().addAll(refreshBtn, searchBox, sep1, statusBox, sep2, validationBox, sep3, sortBox, spacer, resetBtn);
         return filterBar;
     }
 
     private void loadData() {
         allEvents = eventService.getEventsByOrganisateur(currentUser.getId());
+
+        // Message si aucun événement
+        if (allEvents.isEmpty()) {
+            messageInfoLabel.setText("🔔 Vous n'avez pas encore créé d'événement. Cliquez sur 'Nouvel événement' pour commencer !");
+            messageInfoLabel.setVisible(true);
+        } else {
+            messageInfoLabel.setVisible(false);
+        }
+
         updateStats();
         applyFilters();
     }
@@ -296,6 +333,7 @@ public class EventView {
     private void resetFilters() {
         searchField.clear();
         statusFilter.setValue("Tous");
+        validationFilter.setValue("Tous");
         sortCombo.setValue("📅 Plus récent");
         applyFilters();
     }
@@ -303,6 +341,7 @@ public class EventView {
     private void applyFilters() {
         String searchText = searchField.getText().toLowerCase().trim();
         String selectedStatus = statusFilter.getValue();
+        String selectedValidation = validationFilter.getValue();
         String selectedSort = sortCombo.getValue();
 
         List<Event> filtered = allEvents.stream()
@@ -319,6 +358,16 @@ public class EventView {
                     if (filterStatut.equals("à venir") && eventStatut.equals("à venir")) return true;
                     if (filterStatut.equals("en cours") && eventStatut.equals("en cours")) return true;
                     if (filterStatut.equals("passés") && eventStatut.equals("passé")) return true;
+                    return false;
+                })
+                .filter(event -> {
+                    if (selectedValidation == null || "Tous".equals(selectedValidation)) return true;
+                    String eventValidation = event.getStatutValidation();
+                    String filterValidation = selectedValidation.toLowerCase();
+
+                    if (filterValidation.equals("en attente") && "en_attente".equals(eventValidation)) return true;
+                    if (filterValidation.equals("approuvés") && "approuve".equals(eventValidation)) return true;
+                    if (filterValidation.equals("refusés") && "refuse".equals(eventValidation)) return true;
                     return false;
                 })
                 .collect(Collectors.toList());
@@ -347,6 +396,9 @@ public class EventView {
         int aVenir = (int) allEvents.stream().filter(e -> "à venir".equals(e.getStatut())).count();
         int enCours = (int) allEvents.stream().filter(e -> "en cours".equals(e.getStatut())).count();
         int passes = (int) allEvents.stream().filter(e -> "passé".equals(e.getStatut())).count();
+        int enAttente = (int) allEvents.stream().filter(e -> "en_attente".equals(e.getStatutValidation())).count();
+        int approuves = (int) allEvents.stream().filter(e -> "approuve".equals(e.getStatutValidation())).count();
+        int refuses = (int) allEvents.stream().filter(e -> "refuse".equals(e.getStatutValidation())).count();
         int totalParticipants = allEvents.stream().mapToInt(Event::getParticipantsCount).sum();
 
         statsBar.getChildren().addAll(
@@ -354,7 +406,10 @@ public class EventView {
                 createStatCard("⏳", String.valueOf(aVenir), "À venir", WARNING_COLOR),
                 createStatCard("🔄", String.valueOf(enCours), "En cours", "#9b59b6"),
                 createStatCard("✅", String.valueOf(passes), "Passés", "#6c757d"),
-                createStatCard("👥", String.valueOf(totalParticipants), "Participants", SUCCESS_COLOR)
+                createStatCard("⏰", String.valueOf(enAttente), "En attente", "#f39c12"),
+                createStatCard("✓", String.valueOf(approuves), "Approuvés", SUCCESS_COLOR),
+                createStatCard("❌", String.valueOf(refuses), "Refusés", DANGER_COLOR),
+                createStatCard("👥", String.valueOf(totalParticipants), "Participants", "#9b59b6")
         );
     }
 
@@ -422,7 +477,7 @@ public class EventView {
 
     private VBox createEventCard(Event event) {
         VBox card = new VBox(0);
-        card.setPrefSize(280, 400);
+        card.setPrefSize(280, 450);
         card.setStyle("-fx-background-color: white; -fx-background-radius: 16; " +
                 "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 10, 0, 0, 3); -fx-cursor: hand;");
 
@@ -457,6 +512,7 @@ public class EventView {
         imgView.setClip(clip);
         imgContainer.getChildren().add(imgView);
 
+        // Badge statut événement
         String statut = event.getStatut();
         Label statusBadge = new Label(statut.substring(0, 1).toUpperCase() + statut.substring(1));
         statusBadge.setFont(Font.font("System", FontWeight.BOLD, 11));
@@ -481,6 +537,16 @@ public class EventView {
         StackPane.setAlignment(statusBadge, Pos.TOP_RIGHT);
         StackPane.setMargin(statusBadge, new Insets(8, 8, 0, 0));
         imgContainer.getChildren().add(statusBadge);
+
+        // Badge validation
+        Label validationBadge = new Label(event.getStatutValidationFr());
+        validationBadge.setFont(Font.font("System", FontWeight.BOLD, 11));
+        validationBadge.setTextFill(Color.WHITE);
+        validationBadge.setPadding(new Insets(4, 12, 4, 12));
+        validationBadge.setStyle("-fx-background-color: " + event.getStatutValidationColor() + "; -fx-background-radius: 20;");
+        StackPane.setAlignment(validationBadge, Pos.TOP_LEFT);
+        StackPane.setMargin(validationBadge, new Insets(8, 0, 0, 8));
+        imgContainer.getChildren().add(validationBadge);
 
         VBox content = new VBox(10);
         content.setPadding(new Insets(12, 15, 15, 15));
@@ -652,7 +718,7 @@ public class EventView {
         participantTable.getColumns().addAll(nomCol, emailCol, statutCol);
 
         List<User> participants = eventService.getParticipantsByEvent(event.getId_evenement());
-        participantTable.setItems(javafx.collections.FXCollections.observableArrayList(participants));
+        participantTable.setItems(FXCollections.observableArrayList(participants));
 
         Button closeBtn = new Button("Fermer");
         closeBtn.setStyle("-fx-background-color: " + BORDER_COLOR + "; -fx-text-fill: " + DARK_COLOR + "; " +
@@ -693,6 +759,7 @@ public class EventView {
         if (result.isPresent() && result.get() == ButtonType.OK) {
             if (eventService.deleteEvent(event.getId_evenement())) {
                 refreshData();
+                showAlert("Succès", "✅ Événement supprimé avec succès !");
             }
         }
     }
@@ -857,7 +924,7 @@ public class EventView {
         capaciteControl.getChildren().addAll(capaciteSpinner, capaciteHelp);
         capaciteBox.getChildren().addAll(capaciteLabel, capaciteControl);
 
-        // --- SECTION IMAGE AVEC GÉNÉRATION IA ---
+        // SECTION IMAGE
         VBox imageSection = new VBox(10);
         imageSection.setPadding(new Insets(15));
         imageSection.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 12;");
@@ -1025,7 +1092,7 @@ public class EventView {
             dialog.close();
         });
 
-        Button saveBtn = new Button(existingEvent == null ? "Créer l'événement" : "Enregistrer");
+        Button saveBtn = new Button(existingEvent == null ? "Soumettre pour validation" : "Enregistrer");
         saveBtn.setStyle("-fx-background-color: " + SUCCESS_COLOR + "; -fx-text-fill: white; " +
                 "-fx-font-weight: bold; -fx-padding: 10 25; -fx-background-radius: 8; -fx-cursor: hand;");
 
@@ -1106,6 +1173,13 @@ public class EventView {
             boolean success;
             if (existingEvent == null) {
                 success = eventService.addEvent(event);
+                if (success) {
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle("Événement soumis");
+                    alert.setHeaderText(null);
+                    alert.setContentText("Votre événement a été soumis pour validation par l'administrateur. Vous recevrez une notification lorsqu'il sera approuvé.");
+                    alert.showAndWait();
+                }
             } else {
                 success = eventService.updateEvent(event);
             }

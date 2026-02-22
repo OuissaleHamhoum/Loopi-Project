@@ -468,6 +468,8 @@ public class OrganizerDashboard {
         }
     }
 
+    // Dans OrganizerDashboard.java, assurez-vous que la méthode showMyEvents() est correcte :
+
     private void showMyEvents() {
         try {
             Class.forName("edu.Loopi.view.EventView");
@@ -483,7 +485,6 @@ public class OrganizerDashboard {
             showAlert("Erreur", "Erreur lors du chargement des événements: " + e.getMessage());
         }
     }
-
     private void showParticipantsManagement() {
         try {
             Class.forName("edu.Loopi.view.ParticipantsView");

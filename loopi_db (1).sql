@@ -384,3 +384,16 @@ CREATE TABLE IF NOT EXISTS `notifications` (
     CONSTRAINT `notifications_ibfk_1` FOREIGN KEY (`id_user`) REFERENCES `users` (`id`) ON DELETE CASCADE,
     CONSTRAINT `notifications_ibfk_2` FOREIGN KEY (`id_evenement`) REFERENCES `evenement` (`id_evenement`) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ajouter
+-- Modifier la table evenement pour ajouter le statut de validation
+ALTER TABLE `evenement`
+    ADD COLUMN `statut_validation` ENUM('en_attente', 'approuve', 'refuse') DEFAULT 'en_attente',
+ADD COLUMN `date_soumission` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN `date_validation` timestamp NULL DEFAULT NULL,
+ADD COLUMN `commentaire_validation` text DEFAULT NULL,
+ADD INDEX `idx_statut_validation` (`statut_validation`),
+ADD INDEX `idx_date_soumission` (`date_soumission`);
+
+-- Mettre à jour les événements existants comme approuvés (optionnel)
+UPDATE `evenement` SET `statut_validation` = 'approuve', `date_validation` = CURRENT_TIMESTAMP WHERE `statut_validation` IS NULL;

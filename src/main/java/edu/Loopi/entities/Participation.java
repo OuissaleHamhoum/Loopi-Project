@@ -19,6 +19,11 @@ public class Participation {
     private LocalDateTime eventDate;
     private String organisateurNom;
 
+    // Informations utilisateur
+    private String userNom;
+    private String userPrenom;
+    private String userEmail;
+
     public Participation() {}
 
     public Participation(int idUser, int idEvenement, String contact, Integer age) {
@@ -63,18 +68,40 @@ public class Participation {
     public String getOrganisateurNom() { return organisateurNom; }
     public void setOrganisateurNom(String organisateurNom) { this.organisateurNom = organisateurNom; }
 
+    public String getUserNom() { return userNom; }
+    public void setUserNom(String userNom) { this.userNom = userNom; }
+
+    public String getUserPrenom() { return userPrenom; }
+    public void setUserPrenom(String userPrenom) { this.userPrenom = userPrenom; }
+
+    public String getUserEmail() { return userEmail; }
+    public void setUserEmail(String userEmail) { this.userEmail = userEmail; }
+
+    public String getUserNomComplet() {
+        return userPrenom + " " + userNom;
+    }
+
     public String getFormattedDate() {
-        if (dateInscription == null) return "";
+        if (dateInscription == null) return "Date inconnue";
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
         return dateInscription.toLocalDateTime().format(formatter);
     }
 
-    @Override
-    public String toString() {
-        return "Participation{" +
-                "id=" + id +
-                ", evenement=" + eventTitre +
-                ", statut='" + statut + '\'' +
-                '}';
+    public String getStatutColor() {
+        switch (statut.toLowerCase()) {
+            case "inscrit": return "#3b82f6";
+            case "present": return "#10b981";
+            case "absent": return "#ef4444";
+            default: return "#6c757d";
+        }
+    }
+
+    public String getStatutFr() {
+        switch (statut.toLowerCase()) {
+            case "inscrit": return "Inscrit";
+            case "present": return "Présent";
+            case "absent": return "Absent";
+            default: return statut;
+        }
     }
 }

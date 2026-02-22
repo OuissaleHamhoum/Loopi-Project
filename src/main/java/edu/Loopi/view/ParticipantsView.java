@@ -9,6 +9,8 @@ import edu.Loopi.services.UserService;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
+import javafx.collections.transformation.SortedList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -18,14 +20,21 @@ import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.scene.text.TextAlignment;
+import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
+import java.io.File;
 import java.io.FileWriter;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class ParticipantsView {
     private User currentUser;
@@ -33,148 +42,247 @@ public class ParticipantsView {
     private ParticipationService participationService = new ParticipationService();
     private UserService userService = new UserService();
 
-    private ComboBox<Event> eventSelector;
+    // Constantes de couleurs
+    private static final String PRIMARY_COLOR = "#2196F3";
+    private static final String SUCCESS_COLOR = "#10b981";
+    private static final String WARNING_COLOR = "#f59e0b";
+    private static final String DANGER_COLOR = "#ef4444";
+    private static final String DARK_COLOR = "#1e293b";
+    private static final String LIGHT_GRAY = "#f8fafc";
+    private static final String BORDER_COLOR = "#e2e8f0";
+
+    // Formatteurs de date pour l'export
+    private static final DateTimeFormatter EXPORT_DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter EXPORT_DATETIME_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+    private static final DateTimeFormatter EXPORT_FILE_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+
+    // Composants principaux
+    private VBox mainContainer;
     private TableView<Participation> participantsTable;
+    private ComboBox<Event> eventSelector;
+    private ComboBox<String> statusFilter;
+    private TextField searchField;
+
+    // Labels pour les statistiques globales
     private Label totalParticipantsLabel;
-    private Label inscritsLabel;
-    private Label presentsLabel;
-    private Label absentsLabel;
-    private Label eventNameLabel;
-    private Label eventDateLabel;
-    private Label eventLocationLabel;
-    private Label eventCapacityLabel;
-    private VBox eventDetailsBox;
-    private VBox participantDetailsBox;
+    private Label totalInscritsLabel;
+    private Label totalPresentsLabel;
+    private Label totalAbsentsLabel;
+    private Label eventParticipantsCount;
+
+    // Labels pour les statistiques de l'événement sélectionné
+    private Label eventInscritsValue;
+    private Label eventPresentsValue;
+    private Label eventAbsentsValue;
+    private Label eventCompletionValue;
+    private Label eventTauxPresenceValue;
+
+    // Labels pour les détails de l'événement
+    private Label eventTitreValue;
+    private Label eventDateValue;
+    private Label eventLieuValue;
+    private Label eventCapaciteValue;
+    private Label eventStatutValue;
+
+    // Données observables
+    private ObservableList<Event> eventsData;
+    private ObservableList<Participation> allParticipations;
+    private FilteredList<Participation> filteredParticipations;
+    private SortedList<Participation> sortedParticipations;
+
+    // Panel d'information de l'événement
+    private VBox eventInfoPanel;
+    private Event currentSelectedEvent;
 
     public ParticipantsView(User user) {
         this.currentUser = user;
+        this.eventsData = FXCollections.observableArrayList();
+        this.allParticipations = FXCollections.observableArrayList();
     }
 
+    @SuppressWarnings("unchecked")
     public VBox getView() {
-        VBox container = new VBox(20);
-        container.setPadding(new Insets(30));
-        container.setStyle("-fx-background-color: #f8fafc;");
+        mainContainer = new VBox(20);
+        mainContainer.setPadding(new Insets(25));
+        mainContainer.setStyle("-fx-background-color: #f1f5f9;");
 
-        // HEADER
-        HBox header = createHeader();
+        // En-tête
+        VBox header = createHeader();
 
-        // STATISTIQUES GLOBALES
-        HBox globalStatsBox = createGlobalStatistics();
+        // Barre d'outils supérieure
+        HBox topToolbar = createTopToolbar();
 
-        // SÉLECTEUR D'ÉVÉNEMENT
-        VBox selectorBox = createEventSelector();
+        // Statistiques globales
+        HBox globalStats = createGlobalStatistics();
 
-        // DÉTAILS DE L'ÉVÉNEMENT SÉLECTIONNÉ
-        eventDetailsBox = createEventDetails();
-        eventDetailsBox.setVisible(false);
-        eventDetailsBox.setManaged(false);
+        // Sélecteur d'événement
+        VBox eventSelectorBox = createEventSelector();
 
-        // STATISTIQUES DE L'ÉVÉNEMENT
-        HBox eventStatsBox = createEventStatistics();
-        eventStatsBox.setVisible(false);
-        eventStatsBox.setManaged(false);
+        // Panel d'information de l'événement
+        eventInfoPanel = createEventInfoPanel();
 
-        // TABLEAU DES PARTICIPANTS
+        // Zone de filtres
+        VBox filterBox = createFilterBox();
+
+        // Tableau des participants
         VBox tableBox = createParticipantsTable();
 
-        // DÉTAILS DU PARTICIPANT SÉLECTIONNÉ
-        participantDetailsBox = createParticipantDetails();
-        participantDetailsBox.setVisible(false);
-        participantDetailsBox.setManaged(false);
+        // Barre d'outils inférieure
+        HBox bottomToolbar = createBottomToolbar();
 
-        container.getChildren().addAll(
+        // Assemblage
+        mainContainer.getChildren().addAll(
                 header,
-                globalStatsBox,
-                selectorBox,
-                eventDetailsBox,
-                eventStatsBox,
+                topToolbar,
+                globalStats,
+                eventSelectorBox,
+                eventInfoPanel,
+                filterBox,
                 tableBox,
-                participantDetailsBox
+                bottomToolbar
         );
 
-        // Charger les événements de l'organisateur
-        loadEvents();
+        // Charger les données
+        loadData();
 
-        return container;
+        ScrollPane scrollPane = new ScrollPane(mainContainer);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+
+        VBox root = new VBox(scrollPane);
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+
+        return root;
     }
 
-    private HBox createHeader() {
-        HBox header = new HBox(20);
-        header.setAlignment(Pos.CENTER_LEFT);
-        header.setPadding(new Insets(0, 0, 20, 0));
-        header.setStyle("-fx-border-color: #e2e8f0; -fx-border-width: 0 0 2 0;");
+    /**
+     * EN-TÊTE
+     */
+    private VBox createHeader() {
+        VBox header = new VBox(10);
+        header.setPadding(new Insets(0, 0, 15, 0));
+        header.setStyle("-fx-border-color: " + BORDER_COLOR + "; -fx-border-width: 0 0 2 0;");
 
-        VBox headerText = new VBox(5);
+        HBox titleRow = new HBox(20);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
 
-        Label title = new Label("👥 Gestion Complète des Participants");
-        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 28));
-        title.setTextFill(Color.web("#0f172a"));
+        Label iconLabel = new Label("👥");
+        iconLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 48));
+        iconLabel.setMinWidth(70);
+        iconLabel.setAlignment(Pos.CENTER);
 
-        Label subtitle = new Label("Visualisez, gérez et analysez tous les participants à vos événements");
+        VBox titleBox = new VBox(5);
+        Label mainTitle = new Label("Gestion des Participants");
+        mainTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 32));
+        mainTitle.setTextFill(Color.web(DARK_COLOR));
+
+        Label subtitle = new Label("Gérez tous les participants à vos événements écologiques");
         subtitle.setFont(Font.font("Segoe UI", 14));
-        subtitle.setTextFill(Color.web("#475569"));
+        subtitle.setTextFill(Color.web("#64748b"));
+        subtitle.setWrapText(true);
 
-        headerText.getChildren().addAll(title, subtitle);
-
-        // Badge du nombre total d'événements
-        int totalEvents = eventService.countEventsByOrganisateur(currentUser.getId());
-        Label eventsCount = new Label(totalEvents + " Événement(s)");
-        eventsCount.setFont(Font.font("Arial", FontWeight.BOLD, 16));
-        eventsCount.setTextFill(Color.web("#2196F3"));
-        eventsCount.setPadding(new Insets(10, 25, 10, 25));
-        eventsCount.setStyle("-fx-background-color: #E3F2FD; -fx-background-radius: 30;");
+        titleBox.getChildren().addAll(mainTitle, subtitle);
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        header.getChildren().addAll(headerText, spacer, eventsCount);
+        // Badge avec la date
+        Label dateBadge = new Label(LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE dd MMMM yyyy")));
+        dateBadge.setFont(Font.font("Arial", FontWeight.BOLD, 13));
+        dateBadge.setTextFill(Color.web(PRIMARY_COLOR));
+        dateBadge.setPadding(new Insets(8, 20, 8, 20));
+        dateBadge.setStyle("-fx-background-color: #E3F2FD; -fx-background-radius: 30;");
+
+        titleRow.getChildren().addAll(iconLabel, titleBox, spacer, dateBadge);
+        header.getChildren().add(titleRow);
 
         return header;
     }
 
-    private HBox createGlobalStatistics() {
-        HBox box = new HBox(20);
-        box.setPadding(new Insets(20));
-        box.setStyle("-fx-background-color: white; -fx-background-radius: 16; " +
+    /**
+     * BARRE D'OUTILS SUPÉRIEURE
+     */
+    private HBox createTopToolbar() {
+        HBox toolbar = new HBox(15);
+        toolbar.setPadding(new Insets(15));
+        toolbar.setStyle("-fx-background-color: white; -fx-background-radius: 12; " +
                 "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 10, 0, 0, 2);");
-        box.setAlignment(Pos.CENTER);
+        toolbar.setAlignment(Pos.CENTER_LEFT);
+
+        Button refreshBtn = new Button("🔄 Actualiser");
+        refreshBtn.setStyle("-fx-background-color: " + PRIMARY_COLOR + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-padding: 10 20; -fx-background-radius: 8; -fx-cursor: hand;");
+        refreshBtn.setTooltip(new Tooltip("Actualiser les données"));
+        refreshBtn.setOnAction(e -> refreshData());
+
+        Button exportAllBtn = new Button("📥 Exporter");
+        exportAllBtn.setStyle("-fx-background-color: " + SUCCESS_COLOR + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-padding: 10 20; -fx-background-radius: 8; -fx-cursor: hand;");
+        exportAllBtn.setTooltip(new Tooltip("Exporter tous les participants"));
+        exportAllBtn.setOnAction(e -> exportAllParticipants());
+
+        Button statsBtn = new Button("📊 Rapport statistique");
+        statsBtn.setStyle("-fx-background-color: " + WARNING_COLOR + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-padding: 10 20; -fx-background-radius: 8; -fx-cursor: hand;");
+        statsBtn.setTooltip(new Tooltip("Générer un rapport statistique détaillé"));
+        statsBtn.setOnAction(e -> showDetailedStats());
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        // Compteur de participants
+        eventParticipantsCount = new Label("0 participant(s)");
+        eventParticipantsCount.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+        eventParticipantsCount.setTextFill(Color.web(PRIMARY_COLOR));
+
+        toolbar.getChildren().addAll(refreshBtn, exportAllBtn, statsBtn, spacer, eventParticipantsCount);
+
+        return toolbar;
+    }
+
+    /**
+     * STATISTIQUES GLOBALES
+     */
+    private HBox createGlobalStatistics() {
+        HBox statsBox = new HBox(20);
+        statsBox.setPadding(new Insets(20));
+        statsBox.setStyle("-fx-background-color: white; -fx-background-radius: 16; " +
+                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 10, 0, 0, 2);");
+        statsBox.setAlignment(Pos.CENTER);
 
         totalParticipantsLabel = new Label("0");
-        VBox totalCard = createStatCard("👥 Total Participants", totalParticipantsLabel, "#2196F3",
-                "Tous événements confondus");
+        VBox totalCard = createStatCard("👥 Total participants", totalParticipantsLabel, DARK_COLOR, "Tous les participants");
 
-        inscritsLabel = new Label("0");
-        VBox inscritsCard = createStatCard("📝 Inscrits", inscritsLabel, "#3b82f6",
-                "En attente de confirmation");
+        totalInscritsLabel = new Label("0");
+        VBox inscritsCard = createStatCard("📝 Inscrits", totalInscritsLabel, "#3b82f6", "En attente de confirmation");
 
-        presentsLabel = new Label("0");
-        VBox presentsCard = createStatCard("✅ Présents", presentsLabel, "#10b981",
-                "Ont participé à l'événement");
+        totalPresentsLabel = new Label("0");
+        VBox presentsCard = createStatCard("✅ Présents", totalPresentsLabel, SUCCESS_COLOR, "Ont participé à l'événement");
 
-        absentsLabel = new Label("0");
-        VBox absentsCard = createStatCard("❌ Absents", absentsLabel, "#ef4444",
-                "Ne se sont pas présentés");
+        totalAbsentsLabel = new Label("0");
+        VBox absentsCard = createStatCard("❌ Absents", totalAbsentsLabel, DANGER_COLOR, "Ne se sont pas présentés");
 
-        box.getChildren().addAll(totalCard, inscritsCard, presentsCard, absentsCard);
-
-        return box;
+        statsBox.getChildren().addAll(totalCard, inscritsCard, presentsCard, absentsCard);
+        return statsBox;
     }
 
     private VBox createStatCard(String title, Label valueLabel, String color, String description) {
         VBox card = new VBox(8);
         card.setAlignment(Pos.CENTER);
-        card.setPadding(new Insets(20, 25, 20, 25));
+        card.setPadding(new Insets(15, 30, 15, 30));
         card.setStyle("-fx-background-color: white; -fx-background-radius: 12; " +
-                "-fx-border-color: " + color + "; -fx-border-width: 0 0 4 0; " +
-                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 5, 0, 0, 2);");
-        card.setPrefWidth(220);
+                "-fx-border-color: " + color + "; -fx-border-width: 0 0 4 0;");
+        card.setPrefWidth(200);
 
-        valueLabel.setFont(Font.font("Arial", FontWeight.BOLD, 32));
+        valueLabel.setFont(Font.font("Arial", FontWeight.BOLD, 36));
         valueLabel.setTextFill(Color.web(color));
 
         Label titleLabel = new Label(title);
         titleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 13));
-        titleLabel.setTextFill(Color.web("#0f172a"));
+        titleLabel.setTextFill(Color.web(DARK_COLOR));
+        titleLabel.setWrapText(true);
+        titleLabel.setAlignment(Pos.CENTER);
 
         Label descLabel = new Label(description);
         descLabel.setFont(Font.font("Arial", 11));
@@ -186,542 +294,47 @@ public class ParticipantsView {
         return card;
     }
 
+    /**
+     * SÉLECTEUR D'ÉVÉNEMENT
+     */
     private VBox createEventSelector() {
-        VBox box = new VBox(15);
+        VBox box = new VBox(12);
         box.setPadding(new Insets(20));
         box.setStyle("-fx-background-color: white; -fx-background-radius: 16; " +
-                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 10, 0, 0, 2);");
+                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 8, 0, 0, 2);");
 
         Label selectorTitle = new Label("📋 Sélectionner un événement");
-        selectorTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
-        selectorTitle.setTextFill(Color.web("#0f172a"));
+        selectorTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
+        selectorTitle.setTextFill(Color.web(DARK_COLOR));
+        selectorTitle.setWrapText(true);
 
-        HBox selectorContent = new HBox(20);
+        HBox selectorContent = new HBox(15);
         selectorContent.setAlignment(Pos.CENTER_LEFT);
 
         Label selectorLabel = new Label("Événement :");
         selectorLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-        selectorLabel.setTextFill(Color.web("#0f172a"));
+        selectorLabel.setMinWidth(80);
+        selectorLabel.setWrapText(true);
 
         eventSelector = new ComboBox<>();
         eventSelector.setPrefWidth(500);
-        eventSelector.setStyle("-fx-background-radius: 8; -fx-border-radius: 8; -fx-padding: 10 15; " +
-                "-fx-background-color: white; -fx-border-color: #cbd5e1; -fx-font-size: 14px;");
-        eventSelector.setPromptText("Choisissez un événement...");
-        eventSelector.setOnAction(e -> {
-            Event selected = eventSelector.getValue();
-            if (selected != null) {
-                loadEventDetails(selected);
-                loadParticipantsForEvent(selected);
-                eventDetailsBox.setVisible(true);
-                eventDetailsBox.setManaged(true);
-            }
-        });
+        eventSelector.setStyle("-fx-background-radius: 8; -fx-padding: 8 12; " +
+                "-fx-background-color: white; -fx-border-color: " + BORDER_COLOR + "; -fx-border-radius: 8;");
 
-        Button refreshBtn = new Button("🔄 Actualiser");
-        refreshBtn.setStyle("-fx-background-color: #3b82f6; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-padding: 10 20; -fx-background-radius: 8; -fx-cursor: hand;");
-        refreshBtn.setOnAction(e -> {
-            loadEvents();
-            if (eventSelector.getValue() != null) {
-                loadEventDetails(eventSelector.getValue());
-                loadParticipantsForEvent(eventSelector.getValue());
-            }
-        });
-
-        Button clearBtn = new Button("✕ Effacer");
-        clearBtn.setStyle("-fx-background-color: #e2e8f0; -fx-text-fill: #1e293b; " +
-                "-fx-font-weight: bold; -fx-padding: 10 20; -fx-background-radius: 8; -fx-cursor: hand;");
-        clearBtn.setOnAction(e -> {
-            eventSelector.setValue(null);
-            participantsTable.setItems(FXCollections.observableArrayList());
-            eventDetailsBox.setVisible(false);
-            eventDetailsBox.setManaged(false);
-            participantDetailsBox.setVisible(false);
-            participantDetailsBox.setManaged(false);
-        });
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        selectorContent.getChildren().addAll(selectorLabel, eventSelector, spacer, refreshBtn, clearBtn);
-        box.getChildren().addAll(selectorTitle, selectorContent);
-
-        return box;
-    }
-
-    private VBox createEventDetails() {
-        VBox box = new VBox(15);
-        box.setPadding(new Insets(20));
-        box.setStyle("-fx-background-color: #f8fafc; -fx-background-radius: 12; " +
-                "-fx-border-color: #e2e8f0; -fx-border-radius: 12;");
-
-        Label title = new Label("📌 Détails de l'événement");
-        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
-        title.setTextFill(Color.web("#0f172a"));
-
-        GridPane detailsGrid = new GridPane();
-        detailsGrid.setHgap(30);
-        detailsGrid.setVgap(12);
-        detailsGrid.setPadding(new Insets(10, 0, 5, 0));
-
-        // Ligne 0: Titre de l'événement
-        eventNameLabel = new Label();
-        eventNameLabel.setFont(Font.font("Arial", FontWeight.BOLD, 18));
-        eventNameLabel.setTextFill(Color.web("#0f172a"));
-        detailsGrid.add(eventNameLabel, 0, 0, 2, 1);
-
-        // Ligne 1: Date
-        detailsGrid.add(new Label("📅 Date :"), 0, 1);
-        eventDateLabel = new Label();
-        eventDateLabel.setFont(Font.font("Arial", 14));
-        detailsGrid.add(eventDateLabel, 1, 1);
-
-        // Ligne 2: Lieu
-        detailsGrid.add(new Label("📍 Lieu :"), 0, 2);
-        eventLocationLabel = new Label();
-        eventLocationLabel.setFont(Font.font("Arial", 14));
-        detailsGrid.add(eventLocationLabel, 1, 2);
-
-        // Ligne 3: Capacité
-        detailsGrid.add(new Label("👥 Capacité :"), 0, 3);
-        eventCapacityLabel = new Label();
-        eventCapacityLabel.setFont(Font.font("Arial", 14));
-        detailsGrid.add(eventCapacityLabel, 1, 3);
-
-        box.getChildren().addAll(title, detailsGrid);
-
-        return box;
-    }
-
-    private HBox createEventStatistics() {
-        HBox box = new HBox(20);
-        box.setPadding(new Insets(15, 20, 15, 20));
-        box.setStyle("-fx-background-color: white; -fx-background-radius: 12; " +
-                "-fx-border-color: #e2e8f0; -fx-border-radius: 12;");
-        box.setAlignment(Pos.CENTER_LEFT);
-
-        Label statsTitle = new Label("Statistiques de l'événement :");
-        statsTitle.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-        statsTitle.setTextFill(Color.web("#0f172a"));
-
-        // Ces labels seront mis à jour dynamiquement
-        Label eventInscrits = new Label("0");
-        eventInscrits.setFont(Font.font("Arial", FontWeight.BOLD, 16));
-        eventInscrits.setTextFill(Color.web("#3b82f6"));
-
-        Label eventPresents = new Label("0");
-        eventPresents.setFont(Font.font("Arial", FontWeight.BOLD, 16));
-        eventPresents.setTextFill(Color.web("#10b981"));
-
-        Label eventAbsents = new Label("0");
-        eventAbsents.setFont(Font.font("Arial", FontWeight.BOLD, 16));
-        eventAbsents.setTextFill(Color.web("#ef4444"));
-
-        HBox inscritsStat = new HBox(5, new Label("📝 Inscrits:"), eventInscrits);
-        inscritsStat.setAlignment(Pos.CENTER_LEFT);
-
-        HBox presentsStat = new HBox(5, new Label("✅ Présents:"), eventPresents);
-        presentsStat.setAlignment(Pos.CENTER_LEFT);
-
-        HBox absentsStat = new HBox(5, new Label("❌ Absents:"), eventAbsents);
-        absentsStat.setAlignment(Pos.CENTER_LEFT);
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        box.getChildren().addAll(statsTitle, inscritsStat, presentsStat, absentsStat, spacer);
-
-        // Stocker les labels pour mise à jour
-        box.getProperties().put("eventInscrits", eventInscrits);
-        box.getProperties().put("eventPresents", eventPresents);
-        box.getProperties().put("eventAbsents", eventAbsents);
-
-        return box;
-    }
-
-    @SuppressWarnings("unchecked")
-    private VBox createParticipantsTable() {
-        VBox box = new VBox(15);
-        box.setPadding(new Insets(20));
-        box.setStyle("-fx-background-color: white; -fx-background-radius: 16; " +
-                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 10, 0, 0, 2);");
-
-        HBox header = new HBox();
-        header.setAlignment(Pos.CENTER_LEFT);
-
-        Label tableTitle = new Label("📋 Liste détaillée des participants");
-        tableTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
-        tableTitle.setTextFill(Color.web("#0f172a"));
-
-        Label participantCount = new Label();
-        participantCount.setFont(Font.font("Arial", 12));
-        participantCount.setTextFill(Color.web("#64748b"));
-        participantCount.setPadding(new Insets(0, 0, 0, 15));
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        // Boutons d'actions
-        Button exportCSVBtn = new Button("📥 Exporter CSV");
-        exportCSVBtn.setStyle("-fx-background-color: #10b981; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;");
-        exportCSVBtn.setOnAction(e -> exportParticipantsToCSV());
-
-        Button exportAllBtn = new Button("📊 Exporter tous");
-        exportAllBtn.setStyle("-fx-background-color: #3b82f6; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;");
-        exportAllBtn.setOnAction(e -> exportAllParticipants());
-
-        header.getChildren().addAll(tableTitle, participantCount, spacer, exportCSVBtn, exportAllBtn);
-        box.getProperties().put("participantCount", participantCount);
-
-        // Création du tableau
-        participantsTable = new TableView<>();
-        participantsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        participantsTable.setPrefHeight(450);
-        participantsTable.setStyle("-fx-background-color: transparent; -fx-border-color: #e2e8f0; -fx-border-radius: 8;");
-
-        // Colonne ID
-        TableColumn<Participation, Integer> idCol = new TableColumn<>("ID");
-        idCol.setCellValueFactory(new PropertyValueFactory<>("id"));
-        idCol.setPrefWidth(60);
-        idCol.setStyle("-fx-alignment: CENTER;");
-
-        // Colonne Participant
-        TableColumn<Participation, String> participantCol = new TableColumn<>("Participant");
-        participantCol.setCellValueFactory(cellData -> {
-            User user = userService.getUserById(cellData.getValue().getIdUser());
-            String fullName = user != null ? user.getPrenom() + " " + user.getNom() : "Utilisateur inconnu";
-            return new SimpleStringProperty(fullName);
-        });
-        participantCol.setPrefWidth(180);
-
-        // Colonne Email
-        TableColumn<Participation, String> emailCol = new TableColumn<>("Email");
-        emailCol.setCellValueFactory(cellData -> {
-            User user = userService.getUserById(cellData.getValue().getIdUser());
-            return new SimpleStringProperty(user != null ? user.getEmail() : "N/A");
-        });
-        emailCol.setPrefWidth(200);
-
-        // Colonne Contact
-        TableColumn<Participation, String> contactCol = new TableColumn<>("Contact");
-        contactCol.setCellValueFactory(new PropertyValueFactory<>("contact"));
-        contactCol.setPrefWidth(180);
-
-        // Colonne Âge
-        TableColumn<Participation, Integer> ageCol = new TableColumn<>("Âge");
-        ageCol.setCellValueFactory(cellData -> {
-            Integer age = cellData.getValue().getAge();
-            return new javafx.beans.property.SimpleObjectProperty<>(age);
-        });
-        ageCol.setCellFactory(column -> new TableCell<Participation, Integer>() {
-            @Override
-            protected void updateItem(Integer age, boolean empty) {
-                super.updateItem(age, empty);
-                if (empty || age == null) {
-                    setText("-");
-                } else {
-                    setText(age + " ans");
-                }
-                setAlignment(Pos.CENTER);
-            }
-        });
-        ageCol.setPrefWidth(80);
-
-        // Colonne Statut
-        TableColumn<Participation, String> statutCol = new TableColumn<>("Statut");
-        statutCol.setCellValueFactory(new PropertyValueFactory<>("statut"));
-        statutCol.setCellFactory(column -> new TableCell<Participation, String>() {
-            @Override
-            protected void updateItem(String statut, boolean empty) {
-                super.updateItem(statut, empty);
-                if (empty || statut == null) {
-                    setText(null);
-                    setStyle("");
-                } else {
-                    setText(statut.toUpperCase());
-                    setAlignment(Pos.CENTER);
-                    setPadding(new Insets(4, 12, 4, 12));
-                    setFont(Font.font("Arial", FontWeight.BOLD, 11));
-
-                    switch (statut.toLowerCase()) {
-                        case "inscrit":
-                            setStyle("-fx-background-color: #3b82f6; -fx-text-fill: white; -fx-background-radius: 15;");
-                            break;
-                        case "present":
-                            setStyle("-fx-background-color: #10b981; -fx-text-fill: white; -fx-background-radius: 15;");
-                            break;
-                        case "absent":
-                            setStyle("-fx-background-color: #ef4444; -fx-text-fill: white; -fx-background-radius: 15;");
-                            break;
-                    }
-                }
-            }
-        });
-        statutCol.setPrefWidth(100);
-
-        // Colonne Date d'inscription
-        TableColumn<Participation, String> dateCol = new TableColumn<>("Date d'inscription");
-        dateCol.setCellValueFactory(cellData ->
-                new SimpleStringProperty(cellData.getValue().getFormattedDate()));
-        dateCol.setPrefWidth(150);
-        dateCol.setStyle("-fx-alignment: CENTER;");
-
-        // Colonne Actions
-        TableColumn<Participation, Void> actionsCol = new TableColumn<>("Actions");
-        actionsCol.setPrefWidth(200);
-        actionsCol.setCellFactory(column -> new TableCell<Participation, Void>() {
-            private final Button viewBtn = new Button("👤 Détails");
-            private final Button editBtn = new Button("📝 Modifier");
-            private final Button presentBtn = new Button("✅ Présent");
-            private final Button absentBtn = new Button("❌ Absent");
-            private final HBox buttons = new HBox(5);
-
-            {
-                viewBtn.setStyle("-fx-background-color: #3b82f6; -fx-text-fill: white; " +
-                        "-fx-font-size: 11px; -fx-padding: 4 8; -fx-background-radius: 4; -fx-cursor: hand;");
-                editBtn.setStyle("-fx-background-color: #f59e0b; -fx-text-fill: white; " +
-                        "-fx-font-size: 11px; -fx-padding: 4 8; -fx-background-radius: 4; -fx-cursor: hand;");
-                presentBtn.setStyle("-fx-background-color: #10b981; -fx-text-fill: white; " +
-                        "-fx-font-size: 11px; -fx-padding: 4 8; -fx-background-radius: 4; -fx-cursor: hand;");
-                absentBtn.setStyle("-fx-background-color: #ef4444; -fx-text-fill: white; " +
-                        "-fx-font-size: 11px; -fx-padding: 4 8; -fx-background-radius: 4; -fx-cursor: hand;");
-
-                viewBtn.setOnAction(e -> {
-                    Participation p = getTableView().getItems().get(getIndex());
-                    showParticipantFullDetails(p);
-                });
-
-                editBtn.setOnAction(e -> {
-                    Participation p = getTableView().getItems().get(getIndex());
-                    showUpdateStatutDialog(p);
-                });
-
-                presentBtn.setOnAction(e -> {
-                    Participation p = getTableView().getItems().get(getIndex());
-                    updateParticipantStatus(p, "present");
-                });
-
-                absentBtn.setOnAction(e -> {
-                    Participation p = getTableView().getItems().get(getIndex());
-                    updateParticipantStatus(p, "absent");
-                });
-
-                buttons.setAlignment(Pos.CENTER);
-            }
-
-            @Override
-            protected void updateItem(Void item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty) {
-                    setGraphic(null);
-                } else {
-                    Participation p = getTableView().getItems().get(getIndex());
-                    buttons.getChildren().clear();
-
-                    if ("inscrit".equals(p.getStatut())) {
-                        buttons.getChildren().addAll(viewBtn, editBtn, presentBtn, absentBtn);
-                    } else {
-                        buttons.getChildren().addAll(viewBtn, editBtn);
-                    }
-                    setGraphic(buttons);
-                }
-            }
-        });
-
-        participantsTable.getColumns().addAll(
-                idCol, participantCol, emailCol, contactCol, ageCol, statutCol, dateCol, actionsCol
-        );
-
-        // Style des lignes
-        participantsTable.setRowFactory(tv -> new TableRow<Participation>() {
-            @Override
-            protected void updateItem(Participation item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setStyle("");
-                } else {
-                    if (getIndex() % 2 == 0) {
-                        setStyle("-fx-background-color: #f8fafc;");
-                    } else {
-                        setStyle("-fx-background-color: white;");
-                    }
-
-                    setOnMouseClicked(e -> {
-                        if (e.getClickCount() == 2) {
-                            showParticipantFullDetails(item);
-                        }
-                    });
-                }
-            }
-        });
-
-        box.getChildren().addAll(header, participantsTable);
-
-        return box;
-    }
-
-    private VBox createParticipantDetails() {
-        VBox box = new VBox(20);
-        box.setPadding(new Insets(25));
-        box.setStyle("-fx-background-color: white; -fx-background-radius: 16; " +
-                "-fx-border-color: #e2e8f0; -fx-border-radius: 16; " +
-                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 10, 0, 0, 2);");
-
-        HBox header = new HBox(15);
-        header.setAlignment(Pos.CENTER_LEFT);
-
-        Label iconLabel = new Label("👤");
-        iconLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 32));
-
-        VBox headerText = new VBox(5);
-        Label title = new Label("Fiche détaillée du participant");
-        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 20));
-        title.setTextFill(Color.web("#0f172a"));
-
-        Label participantName = new Label();
-        participantName.setFont(Font.font("Arial", FontWeight.BOLD, 16));
-        participantName.setTextFill(Color.web("#2196F3"));
-
-        headerText.getChildren().addAll(title, participantName);
-        header.getChildren().addAll(iconLabel, headerText);
-
-        // Grille d'informations
-        GridPane detailsGrid = new GridPane();
-        detailsGrid.setHgap(30);
-        detailsGrid.setVgap(15);
-        detailsGrid.setPadding(new Insets(15, 0, 15, 0));
-
-        // Section 1: Informations personnelles
-        Label personalTitle = new Label("📋 INFORMATIONS PERSONNELLES");
-        personalTitle.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-        personalTitle.setTextFill(Color.web("#0f172a"));
-        detailsGrid.add(personalTitle, 0, 0, 2, 1);
-
-        detailsGrid.add(new Label("Nom complet:"), 0, 1);
-        Label fullNameDetail = new Label();
-        fullNameDetail.setFont(Font.font("Arial", 14));
-        detailsGrid.add(fullNameDetail, 1, 1);
-
-        detailsGrid.add(new Label("Email:"), 0, 2);
-        Label emailDetail = new Label();
-        emailDetail.setFont(Font.font("Arial", 14));
-        detailsGrid.add(emailDetail, 1, 2);
-
-        detailsGrid.add(new Label("Âge:"), 0, 3);
-        Label ageDetail = new Label();
-        ageDetail.setFont(Font.font("Arial", 14));
-        detailsGrid.add(ageDetail, 1, 3);
-
-        detailsGrid.add(new Label("Genre:"), 0, 4);
-        Label genderDetail = new Label();
-        genderDetail.setFont(Font.font("Arial", 14));
-        detailsGrid.add(genderDetail, 1, 4);
-
-        // Section 2: Informations de participation
-        Label participationTitle = new Label("🎟️ INFORMATIONS DE PARTICIPATION");
-        participationTitle.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-        participationTitle.setTextFill(Color.web("#0f172a"));
-        detailsGrid.add(participationTitle, 0, 5, 2, 1);
-
-        detailsGrid.add(new Label("Email de contact:"), 0, 6);
-        Label contactDetail = new Label();
-        contactDetail.setFont(Font.font("Arial", 14));
-        detailsGrid.add(contactDetail, 1, 6);
-
-        detailsGrid.add(new Label("Statut:"), 0, 7);
-        Label statutDetail = new Label();
-        statutDetail.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-        detailsGrid.add(statutDetail, 1, 7);
-
-        detailsGrid.add(new Label("Date d'inscription:"), 0, 8);
-        Label dateDetail = new Label();
-        dateDetail.setFont(Font.font("Arial", 14));
-        detailsGrid.add(dateDetail, 1, 8);
-
-        // Section 3: Informations sur l'événement
-        Label eventTitle = new Label("📅 INFORMATIONS SUR L'ÉVÉNEMENT");
-        eventTitle.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-        eventTitle.setTextFill(Color.web("#0f172a"));
-        detailsGrid.add(eventTitle, 0, 9, 2, 1);
-
-        detailsGrid.add(new Label("Événement:"), 0, 10);
-        Label eventDetail = new Label();
-        eventDetail.setFont(Font.font("Arial", 14));
-        eventDetail.setWrapText(true);
-        detailsGrid.add(eventDetail, 1, 10);
-
-        detailsGrid.add(new Label("Date:"), 0, 11);
-        Label eventDateDetail = new Label();
-        eventDateDetail.setFont(Font.font("Arial", 14));
-        detailsGrid.add(eventDateDetail, 1, 11);
-
-        detailsGrid.add(new Label("Lieu:"), 0, 12);
-        Label eventLocationDetail = new Label();
-        eventLocationDetail.setFont(Font.font("Arial", 14));
-        detailsGrid.add(eventLocationDetail, 1, 12);
-
-        detailsGrid.add(new Label("Organisateur:"), 0, 13);
-        Label organizerDetail = new Label();
-        organizerDetail.setFont(Font.font("Arial", 14));
-        detailsGrid.add(organizerDetail, 1, 13);
-
-        HBox buttonBox = new HBox(10);
-        buttonBox.setAlignment(Pos.CENTER_RIGHT);
-        buttonBox.setPadding(new Insets(15, 0, 0, 0));
-
-        Button closeBtn = new Button("Fermer");
-        closeBtn.setStyle("-fx-background-color: #e2e8f0; -fx-text-fill: #1e293b; " +
-                "-fx-font-weight: bold; -fx-padding: 10 25; -fx-background-radius: 6; -fx-cursor: hand;");
-        closeBtn.setOnAction(e -> {
-            box.setVisible(false);
-            box.setManaged(false);
-        });
-
-        Button editStatusBtn = new Button("📝 Modifier le statut");
-        editStatusBtn.setStyle("-fx-background-color: #f59e0b; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-padding: 10 25; -fx-background-radius: 6; -fx-cursor: hand;");
-
-        buttonBox.getChildren().addAll(closeBtn, editStatusBtn);
-
-        box.getChildren().addAll(header, detailsGrid, buttonBox);
-
-        // Stocker tous les labels dans les propriétés
-        box.getProperties().put("participantName", participantName);
-        box.getProperties().put("fullNameDetail", fullNameDetail);
-        box.getProperties().put("emailDetail", emailDetail);
-        box.getProperties().put("ageDetail", ageDetail);
-        box.getProperties().put("genderDetail", genderDetail);
-        box.getProperties().put("contactDetail", contactDetail);
-        box.getProperties().put("statutDetail", statutDetail);
-        box.getProperties().put("dateDetail", dateDetail);
-        box.getProperties().put("eventDetail", eventDetail);
-        box.getProperties().put("eventDateDetail", eventDateDetail);
-        box.getProperties().put("eventLocationDetail", eventLocationDetail);
-        box.getProperties().put("organizerDetail", organizerDetail);
-        box.getProperties().put("editStatusBtn", editStatusBtn);
-
-        return box;
-    }
-
-    private void loadEvents() {
-        List<Event> events = eventService.getEventsByOrganisateur(currentUser.getId());
-        ObservableList<Event> eventList = FXCollections.observableArrayList(events);
-        eventSelector.setItems(eventList);
-
-        // Configuration de l'affichage des événements
         eventSelector.setCellFactory(lv -> new ListCell<Event>() {
             @Override
             protected void updateItem(Event event, boolean empty) {
                 super.updateItem(event, empty);
                 if (empty || event == null) {
                     setText(null);
+                } else if (event.getId_evenement() == -1) {
+                    setText("📋 Tous les participants (tous les événements)");
                 } else {
-                    setText(event.getTitre() + " - " + event.getFormattedDate() + " - " +
-                            event.getParticipantsCount() + " participants");
+                    int count = participationService.countParticipantsByEvent(event.getId_evenement());
+                    setText(event.getTitre() + " - " + event.getFormattedDate() +
+                            " (" + count + " participant" + (count > 1 ? "s" : "") + ")");
                 }
+                setWrapText(true);
             }
         });
 
@@ -731,165 +344,698 @@ public class ParticipantsView {
                 super.updateItem(event, empty);
                 if (empty || event == null) {
                     setText(null);
+                } else if (event.getId_evenement() == -1) {
+                    setText("📋 Tous les participants");
                 } else {
                     setText(event.getTitre() + " - " + event.getFormattedDate());
+                }
+                setWrapText(true);
+            }
+        });
+
+        eventSelector.setOnAction(e -> {
+            Event selected = eventSelector.getValue();
+            if (selected != null) {
+                if (selected.getId_evenement() == -1) {
+                    clearEventSelection();
+                } else {
+                    selectEvent(selected);
                 }
             }
         });
 
-        // Mettre à jour les statistiques globales
-        updateGlobalStats(events);
+        Button clearSelectionBtn = new Button("✕ Effacer la sélection");
+        clearSelectionBtn.setStyle("-fx-background-color: " + BORDER_COLOR + "; -fx-text-fill: " + DARK_COLOR + "; " +
+                "-fx-font-weight: bold; -fx-padding: 8 20; -fx-background-radius: 8; -fx-cursor: hand;");
+        clearSelectionBtn.setTooltip(new Tooltip("Afficher tous les participants"));
+        clearSelectionBtn.setOnAction(e -> clearEventSelection());
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        selectorContent.getChildren().addAll(selectorLabel, eventSelector, spacer, clearSelectionBtn);
+        box.getChildren().addAll(selectorTitle, selectorContent);
+
+        return box;
     }
 
-    private void updateGlobalStats(List<Event> events) {
-        int totalParticipants = 0;
-        int totalInscrits = 0;
-        int totalPresents = 0;
-        int totalAbsents = 0;
+    /**
+     * PANEL D'INFORMATION DE L'ÉVÉNEMENT
+     */
+    private VBox createEventInfoPanel() {
+        VBox panel = new VBox(20);
+        panel.setPadding(new Insets(20));
+        panel.setStyle("-fx-background-color: white; -fx-background-radius: 16; " +
+                "-fx-border-color: " + BORDER_COLOR + "; -fx-border-width: 2; -fx-border-radius: 16;");
+        panel.setVisible(false);
+        panel.setManaged(false);
 
-        for (Event event : events) {
-            List<Participation> participants = participationService.getParticipationsByEvent(event.getId_evenement());
-            totalParticipants += participants.size();
+        // Titre du panel
+        Label panelTitle = new Label("📊 Statistiques de l'événement sélectionné");
+        panelTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
+        panelTitle.setTextFill(Color.web(PRIMARY_COLOR));
+        panelTitle.setWrapText(true);
 
-            for (Participation p : participants) {
-                switch (p.getStatut().toLowerCase()) {
-                    case "inscrit": totalInscrits++; break;
-                    case "present": totalPresents++; break;
-                    case "absent": totalAbsents++; break;
+        // Grille principale à 2 colonnes
+        GridPane mainGrid = new GridPane();
+        mainGrid.setHgap(30);
+        mainGrid.setVgap(15);
+
+        // COLONNE GAUCHE - Informations générales
+        VBox leftColumn = new VBox(15);
+        leftColumn.setPadding(new Insets(10));
+        leftColumn.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 12; -fx-padding: 15;");
+
+        Label infoTitle = new Label("📌 Informations générales");
+        infoTitle.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+        infoTitle.setTextFill(Color.web(DARK_COLOR));
+        infoTitle.setWrapText(true);
+
+        GridPane infoGrid = new GridPane();
+        infoGrid.setHgap(15);
+        infoGrid.setVgap(12);
+
+        // Ligne 1 : Titre
+        Label titreLabel = new Label("📝 Titre :");
+        titreLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: " + DARK_COLOR + ";");
+        titreLabel.setWrapText(true);
+        eventTitreValue = new Label();
+        eventTitreValue.setStyle("-fx-font-weight: bold; -fx-text-fill: " + PRIMARY_COLOR + ";");
+        eventTitreValue.setWrapText(true);
+        infoGrid.add(titreLabel, 0, 0);
+        infoGrid.add(eventTitreValue, 1, 0);
+
+        // Ligne 2 : Date
+        Label dateLabel = new Label("📅 Date :");
+        dateLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: " + DARK_COLOR + ";");
+        dateLabel.setWrapText(true);
+        eventDateValue = new Label();
+        eventDateValue.setWrapText(true);
+        infoGrid.add(dateLabel, 0, 1);
+        infoGrid.add(eventDateValue, 1, 1);
+
+        // Ligne 3 : Lieu
+        Label lieuLabel = new Label("📍 Lieu :");
+        lieuLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: " + DARK_COLOR + ";");
+        lieuLabel.setWrapText(true);
+        eventLieuValue = new Label();
+        eventLieuValue.setWrapText(true);
+        infoGrid.add(lieuLabel, 0, 2);
+        infoGrid.add(eventLieuValue, 1, 2);
+
+        // Ligne 4 : Capacité
+        Label capaciteLabel = new Label("👥 Capacité :");
+        capaciteLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: " + DARK_COLOR + ";");
+        capaciteLabel.setWrapText(true);
+        eventCapaciteValue = new Label();
+        eventCapaciteValue.setWrapText(true);
+        infoGrid.add(capaciteLabel, 0, 3);
+        infoGrid.add(eventCapaciteValue, 1, 3);
+
+        // Ligne 5 : Statut
+        Label statutLabel = new Label("📊 Statut :");
+        statutLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: " + DARK_COLOR + ";");
+        statutLabel.setWrapText(true);
+        eventStatutValue = new Label();
+        eventStatutValue.setWrapText(true);
+        infoGrid.add(statutLabel, 0, 4);
+        infoGrid.add(eventStatutValue, 1, 4);
+
+        leftColumn.getChildren().addAll(infoTitle, infoGrid);
+
+        // COLONNE DROITE - Statistiques détaillées
+        VBox rightColumn = new VBox(15);
+        rightColumn.setPadding(new Insets(10));
+        rightColumn.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 12; -fx-padding: 15;");
+
+        Label statsTitle = new Label("📈 Statistiques de participation");
+        statsTitle.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+        statsTitle.setTextFill(Color.web(DARK_COLOR));
+        statsTitle.setWrapText(true);
+
+        GridPane statsGrid = new GridPane();
+        statsGrid.setHgap(20);
+        statsGrid.setVgap(12);
+
+        // Ligne 1 : Inscrits
+        Label inscritLabel = new Label("📝 Inscrits :");
+        inscritLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: " + DARK_COLOR + ";");
+        inscritLabel.setWrapText(true);
+        eventInscritsValue = new Label("0");
+        eventInscritsValue.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        eventInscritsValue.setTextFill(Color.web("#3b82f6"));
+        eventInscritsValue.setWrapText(true);
+        statsGrid.add(inscritLabel, 0, 0);
+        statsGrid.add(eventInscritsValue, 1, 0);
+
+        // Ligne 2 : Présents
+        Label presentLabel = new Label("✅ Présents :");
+        presentLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: " + DARK_COLOR + ";");
+        presentLabel.setWrapText(true);
+        eventPresentsValue = new Label("0");
+        eventPresentsValue.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        eventPresentsValue.setTextFill(Color.web(SUCCESS_COLOR));
+        eventPresentsValue.setWrapText(true);
+        statsGrid.add(presentLabel, 0, 1);
+        statsGrid.add(eventPresentsValue, 1, 1);
+
+        // Ligne 3 : Absents
+        Label absentLabel = new Label("❌ Absents :");
+        absentLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: " + DARK_COLOR + ";");
+        absentLabel.setWrapText(true);
+        eventAbsentsValue = new Label("0");
+        eventAbsentsValue.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        eventAbsentsValue.setTextFill(Color.web(DANGER_COLOR));
+        eventAbsentsValue.setWrapText(true);
+        statsGrid.add(absentLabel, 0, 2);
+        statsGrid.add(eventAbsentsValue, 1, 2);
+
+        // Ligne 4 : Taux de remplissage
+        Label completionLabel = new Label("📊 Taux remplissage :");
+        completionLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: " + DARK_COLOR + ";");
+        completionLabel.setWrapText(true);
+        eventCompletionValue = new Label("0%");
+        eventCompletionValue.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        eventCompletionValue.setTextFill(Color.web(WARNING_COLOR));
+        eventCompletionValue.setWrapText(true);
+        statsGrid.add(completionLabel, 0, 3);
+        statsGrid.add(eventCompletionValue, 1, 3);
+
+        // Ligne 5 : Taux de présence
+        Label presenceLabel = new Label("✅ Taux présence :");
+        presenceLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: " + DARK_COLOR + ";");
+        presenceLabel.setWrapText(true);
+        eventTauxPresenceValue = new Label("0%");
+        eventTauxPresenceValue.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        eventTauxPresenceValue.setTextFill(Color.web(SUCCESS_COLOR));
+        eventTauxPresenceValue.setWrapText(true);
+        statsGrid.add(presenceLabel, 0, 4);
+        statsGrid.add(eventTauxPresenceValue, 1, 4);
+
+        rightColumn.getChildren().addAll(statsTitle, statsGrid);
+
+        // Barre de progression visuelle
+        ProgressBar progressBar = new ProgressBar(0);
+        progressBar.setPrefWidth(Double.MAX_VALUE);
+        progressBar.setStyle("-fx-accent: " + PRIMARY_COLOR + ";");
+
+        mainGrid.add(leftColumn, 0, 0);
+        mainGrid.add(rightColumn, 1, 0);
+
+        panel.getChildren().addAll(panelTitle, mainGrid, progressBar);
+        return panel;
+    }
+
+    /**
+     * ZONE DE FILTRES
+     */
+    private VBox createFilterBox() {
+        VBox box = new VBox(10);
+        box.setPadding(new Insets(15, 20, 15, 20));
+        box.setStyle("-fx-background-color: white; -fx-background-radius: 12; " +
+                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 8, 0, 0, 2);");
+
+        Label filterTitle = new Label("🔍 Filtrer les participants");
+        filterTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+        filterTitle.setTextFill(Color.web(DARK_COLOR));
+        filterTitle.setWrapText(true);
+
+        HBox filterContent = new HBox(15);
+        filterContent.setAlignment(Pos.CENTER_LEFT);
+
+        Label searchLabel = new Label("Rechercher :");
+        searchLabel.setFont(Font.font("Arial", FontWeight.BOLD, 13));
+        searchLabel.setWrapText(true);
+
+        searchField = new TextField();
+        searchField.setPromptText("Nom, prénom, email ou contact...");
+        searchField.setPrefWidth(300);
+        searchField.setStyle("-fx-background-radius: 8; -fx-padding: 8; " +
+                "-fx-border-color: " + BORDER_COLOR + "; -fx-border-radius: 8;");
+        searchField.textProperty().addListener((obs, old, nv) -> applyFilters());
+
+        Label statusLabel = new Label("Statut :");
+        statusLabel.setFont(Font.font("Arial", FontWeight.BOLD, 13));
+        statusLabel.setWrapText(true);
+
+        statusFilter = new ComboBox<>();
+        statusFilter.getItems().addAll("Tous", "Inscrits", "Présents", "Absents");
+        statusFilter.setValue("Tous");
+        statusFilter.setPrefWidth(120);
+        statusFilter.setStyle("-fx-background-radius: 8; -fx-padding: 8; " +
+                "-fx-border-color: " + BORDER_COLOR + "; -fx-border-radius: 8;");
+        statusFilter.setOnAction(e -> applyFilters());
+
+        Button clearFiltersBtn = new Button("✕ Réinitialiser les filtres");
+        clearFiltersBtn.setStyle("-fx-background-color: " + BORDER_COLOR + "; -fx-text-fill: " + DARK_COLOR + "; " +
+                "-fx-font-weight: bold; -fx-padding: 8 20; -fx-background-radius: 8; -fx-cursor: hand;");
+        clearFiltersBtn.setTooltip(new Tooltip("Effacer tous les filtres"));
+        clearFiltersBtn.setOnAction(e -> clearFilters());
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        filterContent.getChildren().addAll(searchLabel, searchField, statusLabel, statusFilter, spacer, clearFiltersBtn);
+        box.getChildren().addAll(filterTitle, filterContent);
+
+        return box;
+    }
+
+    /**
+     * TABLEAU DES PARTICIPANTS AVEC BOUTONS ICÔNES
+     */
+    @SuppressWarnings("unchecked")
+    private VBox createParticipantsTable() {
+        VBox box = new VBox(15);
+        box.setPadding(new Insets(20));
+        box.setStyle("-fx-background-color: white; -fx-background-radius: 16; " +
+                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 8, 0, 0, 2);");
+
+        HBox header = new HBox();
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.setSpacing(10);
+
+        Label tableTitle = new Label("📋 Liste des participants");
+        tableTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
+        tableTitle.setTextFill(Color.web(DARK_COLOR));
+        tableTitle.setWrapText(true);
+
+        participantsTable = new TableView<>();
+        participantsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        participantsTable.setPrefHeight(400);
+        participantsTable.setMinHeight(300);
+        participantsTable.setStyle("-fx-background-color: transparent; -fx-border-color: " + BORDER_COLOR + "; -fx-border-radius: 8;");
+
+        // Colonnes
+        TableColumn<Participation, Integer> idCol = new TableColumn<>("ID");
+        idCol.setCellValueFactory(new PropertyValueFactory<>("id"));
+        idCol.setPrefWidth(60);
+        idCol.setStyle("-fx-alignment: CENTER; -fx-font-weight: bold;");
+
+        TableColumn<Participation, String> participantCol = new TableColumn<>("Participant");
+        participantCol.setCellValueFactory(cellData -> {
+            User user = userService.getUserById(cellData.getValue().getIdUser());
+            String fullName = user != null ? user.getPrenom() + " " + user.getNom() : "Utilisateur inconnu";
+            return new SimpleStringProperty(fullName);
+        });
+        participantCol.setPrefWidth(180);
+
+        TableColumn<Participation, String> emailCol = new TableColumn<>("Email");
+        emailCol.setCellValueFactory(cellData -> {
+            User user = userService.getUserById(cellData.getValue().getIdUser());
+            return new SimpleStringProperty(user != null ? user.getEmail() : "N/A");
+        });
+        emailCol.setPrefWidth(180);
+
+        TableColumn<Participation, String> contactCol = new TableColumn<>("📞 Contact");
+        contactCol.setCellValueFactory(new PropertyValueFactory<>("contact"));
+        contactCol.setPrefWidth(140);
+
+        TableColumn<Participation, String> ageCol = new TableColumn<>("Âge");
+        ageCol.setCellValueFactory(cellData -> {
+            Integer age = cellData.getValue().getAge();
+            return new SimpleStringProperty(age != null ? age + " ans" : "-");
+        });
+        ageCol.setPrefWidth(60);
+        ageCol.setStyle("-fx-alignment: CENTER;");
+
+        TableColumn<Participation, String> statutCol = new TableColumn<>("Statut");
+        statutCol.setCellValueFactory(new PropertyValueFactory<>("statut"));
+        statutCol.setPrefWidth(100);
+        statutCol.setCellFactory(col -> new TableCell<Participation, String>() {
+            @Override
+            protected void updateItem(String statut, boolean empty) {
+                super.updateItem(statut, empty);
+                if (empty || statut == null) {
+                    setGraphic(null);
+                } else {
+                    Label badge = new Label(statut.toUpperCase());
+                    badge.setFont(Font.font("Arial", FontWeight.BOLD, 11));
+                    badge.setTextFill(Color.WHITE);
+                    badge.setPadding(new Insets(4, 12, 4, 12));
+                    badge.setStyle("-fx-background-color: " + getStatusColor(statut) + "; -fx-background-radius: 15;");
+                    setGraphic(badge);
+                    setAlignment(Pos.CENTER);
                 }
             }
-        }
+        });
 
-        totalParticipantsLabel.setText(String.valueOf(totalParticipants));
-        inscritsLabel.setText(String.valueOf(totalInscrits));
-        presentsLabel.setText(String.valueOf(totalPresents));
-        absentsLabel.setText(String.valueOf(totalAbsents));
-    }
+        TableColumn<Participation, String> dateCol = new TableColumn<>("📅 Date d'inscription");
+        dateCol.setCellValueFactory(cellData ->
+                new SimpleStringProperty(cellData.getValue().getFormattedDate()));
+        dateCol.setPrefWidth(130);
+        dateCol.setStyle("-fx-alignment: CENTER;");
 
-    private void loadEventDetails(Event event) {
-        eventNameLabel.setText(event.getTitre());
-        eventDateLabel.setText(event.getFormattedDate());
-        eventLocationLabel.setText(event.getLieu() != null ? event.getLieu() : "Non spécifié");
+        // COLONNE ACTIONS AVEC BOUTONS ICÔNES
+        TableColumn<Participation, Void> actionsCol = new TableColumn<>("Actions");
+        actionsCol.setPrefWidth(200);
+        actionsCol.setCellFactory(col -> new TableCell<Participation, Void>() {
+            private final Button viewBtn = createIconButton("👤", "#3b82f6", "Voir détails");
+            private final Button presentBtn = createIconButton("✅", SUCCESS_COLOR, "Marquer présent");
+            private final Button absentBtn = createIconButton("❌", DANGER_COLOR, "Marquer absent");
+            private final Button deleteBtn = createIconButton("🗑️", "#6b7280", "Supprimer");
+            private final HBox buttons = new HBox(5, viewBtn, presentBtn, absentBtn, deleteBtn);
 
-        String capacite = event.getCapacite_max() != null ?
-                event.getCapacite_max() + " places" : "Illimitée";
-        eventCapacityLabel.setText(capacite);
-    }
+            {
+                viewBtn.setOnAction(e -> {
+                    Participation p = getTableView().getItems().get(getIndex());
+                    showParticipantDetails(p);
+                });
 
-    private void loadParticipantsForEvent(Event event) {
-        List<Participation> participants = participationService.getParticipationsByEvent(event.getId_evenement());
-        ObservableList<Participation> participantList = FXCollections.observableArrayList(participants);
-        participantsTable.setItems(participantList);
+                presentBtn.setOnAction(e -> {
+                    Participation p = getTableView().getItems().get(getIndex());
+                    updateStatus(p, "present");
+                });
 
-        // Mettre à jour le compteur
-        Label countLabel = (Label) participantsTable.getParent().getProperties().get("participantCount");
-        if (countLabel != null) {
-            countLabel.setText("(" + participants.size() + " participant(s))");
-        }
+                absentBtn.setOnAction(e -> {
+                    Participation p = getTableView().getItems().get(getIndex());
+                    updateStatus(p, "absent");
+                });
 
-        // Mettre à jour les statistiques de l'événement
-        updateEventStats(event, participants);
-    }
-
-    private void updateEventStats(Event event, List<Participation> participants) {
-        int inscrits = 0;
-        int presents = 0;
-        int absents = 0;
-
-        for (Participation p : participants) {
-            switch (p.getStatut().toLowerCase()) {
-                case "inscrit": inscrits++; break;
-                case "present": presents++; break;
-                case "absent": absents++; break;
+                deleteBtn.setOnAction(e -> {
+                    Participation p = getTableView().getItems().get(getIndex());
+                    deleteParticipation(p);
+                });
             }
-        }
 
-        // Afficher les statistiques
-        HBox eventStatsBox = (HBox) eventDetailsBox.getParent().getChildrenUnmodifiable().get(4);
-        if (eventStatsBox != null) {
-            Label eventInscrits = (Label) eventStatsBox.getProperties().get("eventInscrits");
-            Label eventPresents = (Label) eventStatsBox.getProperties().get("eventPresents");
-            Label eventAbsents = (Label) eventStatsBox.getProperties().get("eventAbsents");
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                setGraphic(empty ? null : buttons);
+            }
+        });
 
-            if (eventInscrits != null) eventInscrits.setText(String.valueOf(inscrits));
-            if (eventPresents != null) eventPresents.setText(String.valueOf(presents));
-            if (eventAbsents != null) eventAbsents.setText(String.valueOf(absents));
+        participantsTable.getColumns().addAll(
+                idCol, participantCol, emailCol, contactCol, ageCol,
+                statutCol, dateCol, actionsCol
+        );
 
-            eventStatsBox.setVisible(true);
-            eventStatsBox.setManaged(true);
+        // Info-bulle pour double-clic
+        participantsTable.setTooltip(new Tooltip("Double-cliquez sur un participant pour voir ses détails"));
+
+        // Double-clic pour voir détails
+        participantsTable.setOnMouseClicked(e -> {
+            if (e.getClickCount() == 2 && participantsTable.getSelectionModel().getSelectedItem() != null) {
+                showParticipantDetails(participantsTable.getSelectionModel().getSelectedItem());
+            }
+        });
+
+        VBox.setVgrow(participantsTable, Priority.ALWAYS);
+        box.getChildren().addAll(header, participantsTable);
+
+        return box;
+    }
+
+    /**
+     * BOUTON AVEC ICÔNE POUR LE TABLEAU
+     */
+    private Button createIconButton(String icon, String color, String tooltip) {
+        Button btn = new Button(icon);
+        btn.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; " +
+                "-fx-font-size: 14px; -fx-min-width: 35px; -fx-min-height: 35px; " +
+                "-fx-background-radius: 4; -fx-cursor: hand;");
+        btn.setTooltip(new Tooltip(tooltip));
+
+        btn.setOnMouseEntered(e -> {
+            btn.setStyle("-fx-background-color: " + darkenColor(color) + "; -fx-text-fill: white; " +
+                    "-fx-font-size: 14px; -fx-min-width: 35px; -fx-min-height: 35px; " +
+                    "-fx-background-radius: 4; -fx-cursor: hand; -fx-scale-x: 1.1; -fx-scale-y: 1.1;");
+        });
+
+        btn.setOnMouseExited(e -> {
+            btn.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; " +
+                    "-fx-font-size: 14px; -fx-min-width: 35px; -fx-min-height: 35px; " +
+                    "-fx-background-radius: 4; -fx-cursor: hand;");
+        });
+
+        return btn;
+    }
+
+    private String darkenColor(String color) {
+        switch (color) {
+            case "#3b82f6": return "#2563eb";
+            case SUCCESS_COLOR: return "#059669";
+            case DANGER_COLOR: return "#dc2626";
+            case "#6b7280": return "#4b5563";
+            default: return color;
         }
     }
 
-    private void showParticipantFullDetails(Participation participation) {
-        User participant = userService.getUserById(participation.getIdUser());
-        Event event = eventService.getEventById(participation.getIdEvenement());
-        User organizer = userService.getUserById(event.getId_organisateur());
+    /**
+     * BARRE D'OUTILS INFÉRIEURE
+     */
+    private HBox createBottomToolbar() {
+        HBox toolbar = new HBox(15);
+        toolbar.setPadding(new Insets(15));
+        toolbar.setStyle("-fx-background-color: white; -fx-background-radius: 12; " +
+                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 10, 0, 0, 2);");
+        toolbar.setAlignment(Pos.CENTER_RIGHT);
 
-        if (participant == null || event == null) return;
+        Button markAllPresentBtn = new Button("✅ Tout marquer présent");
+        markAllPresentBtn.setStyle("-fx-background-color: " + SUCCESS_COLOR + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-padding: 10 20; -fx-background-radius: 8; -fx-cursor: hand;");
+        markAllPresentBtn.setTooltip(new Tooltip("Marquer tous les participants affichés comme présents"));
+        markAllPresentBtn.setOnAction(e -> markAllAsPresent());
 
-        // Mettre à jour tous les labels
-        Label participantName = (Label) participantDetailsBox.getProperties().get("participantName");
-        Label fullNameDetail = (Label) participantDetailsBox.getProperties().get("fullNameDetail");
-        Label emailDetail = (Label) participantDetailsBox.getProperties().get("emailDetail");
-        Label ageDetail = (Label) participantDetailsBox.getProperties().get("ageDetail");
-        Label genderDetail = (Label) participantDetailsBox.getProperties().get("genderDetail");
-        Label contactDetail = (Label) participantDetailsBox.getProperties().get("contactDetail");
-        Label statutDetail = (Label) participantDetailsBox.getProperties().get("statutDetail");
-        Label dateDetail = (Label) participantDetailsBox.getProperties().get("dateDetail");
-        Label eventDetail = (Label) participantDetailsBox.getProperties().get("eventDetail");
-        Label eventDateDetail = (Label) participantDetailsBox.getProperties().get("eventDateDetail");
-        Label eventLocationDetail = (Label) participantDetailsBox.getProperties().get("eventLocationDetail");
-        Label organizerDetail = (Label) participantDetailsBox.getProperties().get("organizerDetail");
-        Button editStatusBtn = (Button) participantDetailsBox.getProperties().get("editStatusBtn");
+        Button markAllAbsentBtn = new Button("❌ Tout marquer absent");
+        markAllAbsentBtn.setStyle("-fx-background-color: " + DANGER_COLOR + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-padding: 10 20; -fx-background-radius: 8; -fx-cursor: hand;");
+        markAllAbsentBtn.setTooltip(new Tooltip("Marquer tous les participants affichés comme absents"));
+        markAllAbsentBtn.setOnAction(e -> markAllAsAbsent());
 
-        String fullName = participant.getPrenom() + " " + participant.getNom();
-        participantName.setText(fullName);
-        fullNameDetail.setText(fullName);
-        emailDetail.setText(participant.getEmail());
-        ageDetail.setText(participation.getAge() != null ? participation.getAge() + " ans" : "Non spécifié");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        String gender = "";
-        if (participant.getIdGenre() == 1) gender = "Homme";
-        else if (participant.getIdGenre() == 2) gender = "Femme";
-        else gender = "Non spécifié";
-        genderDetail.setText(gender);
+        toolbar.getChildren().addAll(markAllPresentBtn, markAllAbsentBtn, spacer);
 
-        contactDetail.setText(participation.getContact());
-
-        String statut = participation.getStatut().toUpperCase();
-        statutDetail.setText(statut);
-        statutDetail.setStyle(getStatutStyle(participation.getStatut()));
-
-        dateDetail.setText(participation.getFormattedDate());
-        eventDetail.setText(event.getTitre());
-        eventDateDetail.setText(event.getFormattedDate());
-        eventLocationDetail.setText(event.getLieu() != null ? event.getLieu() : "Non spécifié");
-        organizerDetail.setText(organizer != null ? organizer.getPrenom() + " " + organizer.getNom() : "N/A");
-
-        editStatusBtn.setOnAction(e -> showUpdateStatutDialog(participation));
-
-        participantDetailsBox.setVisible(true);
-        participantDetailsBox.setManaged(true);
+        return toolbar;
     }
 
-    private String getStatutStyle(String statut) {
+    /**
+     * CHARGEMENT DES DONNÉES
+     */
+    private void loadData() {
+        // Charger les événements
+        List<Event> events = eventService.getEventsByOrganisateur(currentUser.getId());
+        eventsData.setAll(events);
+
+        // Option "Tous les événements"
+        Event allEventsOption = new Event();
+        allEventsOption.setId_evenement(-1);
+        allEventsOption.setTitre("Tous les participants");
+
+        ObservableList<Event> comboItems = FXCollections.observableArrayList();
+        comboItems.add(allEventsOption);
+        comboItems.addAll(eventsData);
+        eventSelector.setItems(comboItems);
+        eventSelector.setValue(allEventsOption);
+
+        // Charger toutes les participations
+        allParticipations.clear();
+        for (Event event : events) {
+            List<Participation> participants = participationService.getParticipationsByEvent(event.getId_evenement());
+            allParticipations.addAll(participants);
+        }
+
+        // Configurer les listes filtrées
+        filteredParticipations = new FilteredList<>(allParticipations, p -> true);
+        sortedParticipations = new SortedList<>(filteredParticipations);
+        sortedParticipations.comparatorProperty().bind(participantsTable.comparatorProperty());
+        participantsTable.setItems(sortedParticipations);
+
+        // Mettre à jour les statistiques
+        updateGlobalStats();
+        updateParticipantCount();
+    }
+
+    private void refreshData() {
+        loadData();
+        clearFilters();
+        if (currentSelectedEvent != null) {
+            selectEvent(currentSelectedEvent);
+        } else {
+            clearEventSelection();
+        }
+    }
+
+    /**
+     * APPLICATION DES FILTRES
+     */
+    private void applyFilters() {
+        if (filteredParticipations == null) return;
+
+        String searchText = searchField.getText().toLowerCase().trim();
+        String statusValue = statusFilter.getValue();
+
+        filteredParticipations.setPredicate(participation -> {
+            // Filtre par statut
+            if (statusValue != null && !"Tous".equals(statusValue)) {
+                String expectedStatus = statusValue.equals("Inscrits") ? "inscrit" :
+                        statusValue.equals("Présents") ? "present" : "absent";
+                if (!participation.getStatut().equalsIgnoreCase(expectedStatus)) {
+                    return false;
+                }
+            }
+
+            // Filtre par recherche
+            if (!searchText.isEmpty()) {
+                User user = userService.getUserById(participation.getIdUser());
+                if (user == null) return false;
+
+                boolean matches = user.getPrenom().toLowerCase().contains(searchText) ||
+                        user.getNom().toLowerCase().contains(searchText) ||
+                        user.getEmail().toLowerCase().contains(searchText) ||
+                        (participation.getContact() != null && participation.getContact().toLowerCase().contains(searchText));
+
+                if (!matches) return false;
+            }
+
+            return true;
+        });
+
+        updateParticipantCount();
+    }
+
+    private void clearFilters() {
+        searchField.clear();
+        statusFilter.setValue("Tous");
+        applyFilters();
+    }
+
+    /**
+     * SÉLECTION D'ÉVÉNEMENT
+     */
+    private void selectEvent(Event event) {
+        currentSelectedEvent = event;
+
+        // Filtrer les participations
+        List<Participation> eventParticipations = allParticipations.stream()
+                .filter(p -> p.getIdEvenement() == event.getId_evenement())
+                .collect(Collectors.toList());
+
+        filteredParticipations = new FilteredList<>(FXCollections.observableArrayList(eventParticipations), p -> true);
+        sortedParticipations = new SortedList<>(filteredParticipations);
+        sortedParticipations.comparatorProperty().bind(participantsTable.comparatorProperty());
+        participantsTable.setItems(sortedParticipations);
+
+        // Afficher le panel d'information
+        eventInfoPanel.setVisible(true);
+        eventInfoPanel.setManaged(true);
+
+        // Mettre à jour les informations
+        updateEventInfo(event);
+        updateEventStats(eventParticipations);
+        updateParticipantCount();
+
+        // Réappliquer les filtres
+        applyFilters();
+    }
+
+    private void clearEventSelection() {
+        currentSelectedEvent = null;
+
+        filteredParticipations = new FilteredList<>(allParticipations, p -> true);
+        sortedParticipations = new SortedList<>(filteredParticipations);
+        sortedParticipations.comparatorProperty().bind(participantsTable.comparatorProperty());
+        participantsTable.setItems(sortedParticipations);
+
+        eventInfoPanel.setVisible(false);
+        eventInfoPanel.setManaged(false);
+        updateParticipantCount();
+        applyFilters();
+    }
+
+    /**
+     * MISE À JOUR DES INFORMATIONS D'ÉVÉNEMENT
+     */
+    private void updateEventInfo(Event event) {
+        eventTitreValue.setText(event.getTitre());
+        eventDateValue.setText(event.getFormattedDate());
+        eventLieuValue.setText(event.getLieu() != null ? event.getLieu() : "Non spécifié");
+        eventCapaciteValue.setText(event.getCapacite_max() != null ?
+                event.getCapacite_max() + " places" : "Illimitée");
+
+        // Statut avec couleur
+        String statut = event.getStatut();
+        eventStatutValue.setText(statut.substring(0, 1).toUpperCase() + statut.substring(1));
+
+        String statutColor;
         switch (statut.toLowerCase()) {
-            case "inscrit":
-                return "-fx-background-color: #3b82f6; -fx-text-fill: white; -fx-padding: 4 12; -fx-background-radius: 15;";
-            case "present":
-                return "-fx-background-color: #10b981; -fx-text-fill: white; -fx-padding: 4 12; -fx-background-radius: 15;";
-            case "absent":
-                return "-fx-background-color: #ef4444; -fx-text-fill: white; -fx-padding: 4 12; -fx-background-radius: 15;";
-            default:
-                return "-fx-background-color: #94a3b8; -fx-text-fill: white; -fx-padding: 4 12; -fx-background-radius: 15;";
+            case "à venir": statutColor = WARNING_COLOR; break;
+            case "en cours": statutColor = "#9b59b6"; break;
+            case "passé": statutColor = "#6c757d"; break;
+            default: statutColor = "#6c757d";
+        }
+        eventStatutValue.setTextFill(Color.web(statutColor));
+        eventStatutValue.setStyle("-fx-font-weight: bold;");
+    }
+
+    /**
+     * MISE À JOUR DES STATISTIQUES DÉTAILLÉES
+     */
+    private void updateEventStats(List<Participation> participants) {
+        long inscrits = participants.stream().filter(p -> "inscrit".equals(p.getStatut())).count();
+        long presents = participants.stream().filter(p -> "present".equals(p.getStatut())).count();
+        long absents = participants.stream().filter(p -> "absent".equals(p.getStatut())).count();
+        long total = participants.size();
+
+        // Mise à jour des valeurs
+        eventInscritsValue.setText(String.valueOf(inscrits));
+        eventPresentsValue.setText(String.valueOf(presents));
+        eventAbsentsValue.setText(String.valueOf(absents));
+
+        // Calcul des taux
+        if (total > 0) {
+            double tauxPresence = (presents * 100.0) / total;
+            eventTauxPresenceValue.setText(String.format("%.1f%%", tauxPresence));
+        } else {
+            eventTauxPresenceValue.setText("0%");
+        }
+
+        if (currentSelectedEvent != null && currentSelectedEvent.getCapacite_max() != null &&
+                currentSelectedEvent.getCapacite_max() > 0) {
+            double tauxRemplissage = (total * 100.0) / currentSelectedEvent.getCapacite_max();
+            eventCompletionValue.setText(String.format("%.1f%%", tauxRemplissage));
+
+            // Mise à jour de la barre de progression
+            ProgressBar progressBar = (ProgressBar) eventInfoPanel.getChildren().get(2);
+            progressBar.setProgress(Math.min(tauxRemplissage / 100, 1.0));
+        } else {
+            eventCompletionValue.setText("-");
+            ProgressBar progressBar = (ProgressBar) eventInfoPanel.getChildren().get(2);
+            progressBar.setProgress(0);
         }
     }
 
-    private void updateParticipantStatus(Participation participation, String newStatus) {
+    private void updateGlobalStats() {
+        long total = allParticipations.size();
+        long inscrits = allParticipations.stream().filter(p -> "inscrit".equals(p.getStatut())).count();
+        long presents = allParticipations.stream().filter(p -> "present".equals(p.getStatut())).count();
+        long absents = allParticipations.stream().filter(p -> "absent".equals(p.getStatut())).count();
+
+        totalParticipantsLabel.setText(String.valueOf(total));
+        totalInscritsLabel.setText(String.valueOf(inscrits));
+        totalPresentsLabel.setText(String.valueOf(presents));
+        totalAbsentsLabel.setText(String.valueOf(absents));
+    }
+
+    private void updateParticipantCount() {
+        if (sortedParticipations != null) {
+            int count = sortedParticipations.size();
+            eventParticipantsCount.setText(count + " participant" + (count > 1 ? "s" : ""));
+        }
+    }
+
+    /**
+     * ACTIONS SUR LES PARTICIPANTS
+     */
+    private void updateStatus(Participation participation, String newStatus) {
+        String statusText = newStatus.equals("present") ? "PRÉSENT" : "ABSENT";
+
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
         confirm.setTitle("Confirmation");
-        confirm.setHeaderText("Changer le statut");
-        confirm.setContentText("Voulez-vous marquer ce participant comme '" + newStatus + "' ?");
+        confirm.setHeaderText("Changement de statut");
+        confirm.setContentText("Voulez-vous marquer ce participant comme " + statusText + " ?");
 
         Optional<ButtonType> result = confirm.showAndWait();
         if (result.isPresent() && result.get() == ButtonType.OK) {
@@ -900,228 +1046,770 @@ public class ParticipantsView {
             );
 
             if (success) {
-                // Recharger les données
-                Event selectedEvent = eventSelector.getValue();
-                if (selectedEvent != null) {
-                    loadParticipantsForEvent(selectedEvent);
-                }
-
-                // Mettre à jour les statistiques globales
-                loadEvents();
-
-                Alert successAlert = new Alert(Alert.AlertType.INFORMATION);
-                successAlert.setTitle("Succès");
-                successAlert.setHeaderText(null);
-                successAlert.setContentText("Statut mis à jour avec succès !");
-                successAlert.showAndWait();
+                refreshData();
+                showSuccess("Statut mis à jour avec succès !");
+            } else {
+                showError("Échec de la mise à jour du statut");
             }
         }
     }
 
-    private void showUpdateStatutDialog(Participation participation) {
+    private void deleteParticipation(Participation participation) {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Confirmation");
+        confirm.setHeaderText("Supprimer la participation");
+        confirm.setContentText("Voulez-vous vraiment supprimer cette participation ?\nCette action est irréversible.");
+
+        Optional<ButtonType> result = confirm.showAndWait();
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            boolean success = participationService.annulerParticipation(
+                    participation.getIdEvenement(),
+                    participation.getIdUser()
+            );
+
+            if (success) {
+                refreshData();
+                showSuccess("Participation supprimée avec succès !");
+            } else {
+                showError("Échec de la suppression");
+            }
+        }
+    }
+
+    private void markAllAsPresent() {
+        if (filteredParticipations == null || filteredParticipations.isEmpty()) {
+            showWarning("Aucun participant à marquer");
+            return;
+        }
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Confirmation");
+        confirm.setHeaderText("Action groupée");
+        confirm.setContentText("Voulez-vous marquer tous les participants affichés comme PRÉSENTS ?");
+
+        Optional<ButtonType> result = confirm.showAndWait();
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            int success = 0;
+            int total = 0;
+
+            for (Participation p : filteredParticipations) {
+                if (!"present".equals(p.getStatut())) {
+                    total++;
+                    if (participationService.updateStatut(p.getIdEvenement(), p.getIdUser(), "present")) {
+                        success++;
+                    }
+                }
+            }
+
+            if (success > 0) {
+                refreshData();
+                showSuccess(success + " participant(s) marqué(s) comme présent(s) sur " + total);
+            }
+        }
+    }
+
+    private void markAllAsAbsent() {
+        if (filteredParticipations == null || filteredParticipations.isEmpty()) {
+            showWarning("Aucun participant à marquer");
+            return;
+        }
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Confirmation");
+        confirm.setHeaderText("Action groupée");
+        confirm.setContentText("Voulez-vous marquer tous les participants affichés comme ABSENTS ?");
+
+        Optional<ButtonType> result = confirm.showAndWait();
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            int success = 0;
+            int total = 0;
+
+            for (Participation p : filteredParticipations) {
+                if (!"absent".equals(p.getStatut())) {
+                    total++;
+                    if (participationService.updateStatut(p.getIdEvenement(), p.getIdUser(), "absent")) {
+                        success++;
+                    }
+                }
+            }
+
+            if (success > 0) {
+                refreshData();
+                showSuccess(success + " participant(s) marqué(s) comme absent(s) sur " + total);
+            }
+        }
+    }
+
+    /**
+     * FICHE DÉTAILLÉE DU PARTICIPANT
+     */
+    private void showParticipantDetails(Participation participation) {
+        User participant = userService.getUserById(participation.getIdUser());
+        Event event = eventService.getEventById(participation.getIdEvenement());
+
+        if (participant == null || event == null) {
+            showError("Impossible de charger les détails du participant");
+            return;
+        }
+
         Stage dialog = new Stage();
         dialog.initModality(Modality.APPLICATION_MODAL);
-        dialog.setTitle("Modifier le statut");
-        dialog.setResizable(false);
+        dialog.setTitle("Détails du participant - " + participant.getPrenom() + " " + participant.getNom());
 
         VBox content = new VBox(20);
         content.setPadding(new Insets(25));
         content.setStyle("-fx-background-color: white;");
-        content.setPrefWidth(400);
+        content.setPrefWidth(550);
 
-        Label title = new Label("📝 Changer le statut du participant");
-        title.setFont(Font.font("Arial", FontWeight.BOLD, 16));
-        title.setTextFill(Color.web("#0f172a"));
+        // En-tête
+        HBox header = new HBox(15);
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.setPadding(new Insets(0, 0, 15, 0));
+        header.setStyle("-fx-border-color: " + BORDER_COLOR + "; -fx-border-width: 0 0 1 0;");
 
-        User participant = userService.getUserById(participation.getIdUser());
-        Label participantName = new Label(participant.getPrenom() + " " + participant.getNom());
-        participantName.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-        participantName.setTextFill(Color.web("#2196F3"));
-        participantName.setPadding(new Insets(5, 0, 10, 0));
+        Label avatarIcon = new Label("👤");
+        avatarIcon.setFont(Font.font("Segoe UI", FontWeight.BOLD, 48));
 
-        VBox radioBox = new VBox(12);
-        radioBox.setPadding(new Insets(10, 0, 10, 0));
-        radioBox.setStyle("-fx-background-color: #f8fafc; -fx-padding: 15; -fx-background-radius: 8;");
+        VBox headerText = new VBox(5);
+        Label titleLabel = new Label("Fiche détaillée du participant");
+        titleLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 20));
+        titleLabel.setTextFill(Color.web(PRIMARY_COLOR));
+        titleLabel.setWrapText(true);
 
-        ToggleGroup group = new ToggleGroup();
+        Label nameLabel = new Label(participant.getPrenom() + " " + participant.getNom());
+        nameLabel.setFont(Font.font("Arial", FontWeight.BOLD, 18));
+        nameLabel.setTextFill(Color.web(DARK_COLOR));
+        nameLabel.setWrapText(true);
 
-        RadioButton inscritRadio = new RadioButton("Inscrit - En attente de confirmation");
-        inscritRadio.setToggleGroup(group);
-        inscritRadio.setSelected(participation.getStatut().equals("inscrit"));
-        inscritRadio.setFont(Font.font("Arial", 13));
+        headerText.getChildren().addAll(titleLabel, nameLabel);
+        header.getChildren().addAll(avatarIcon, headerText);
 
-        RadioButton presentRadio = new RadioButton("Présent - A participé à l'événement");
-        presentRadio.setToggleGroup(group);
-        presentRadio.setSelected(participation.getStatut().equals("present"));
-        presentRadio.setFont(Font.font("Arial", 13));
+        // Section Informations personnelles
+        VBox personalSection = createDetailSection("📋 Informations personnelles");
+        GridPane personalGrid = createDetailGrid();
+        addDetailRow(personalGrid, "📧 Email :", participant.getEmail(), 0);
+        addDetailRow(personalGrid, "🎂 Âge :", participation.getAge() != null ? participation.getAge() + " ans" : "Non spécifié", 1);
+        addDetailRow(personalGrid, "⚥ Genre :", getGenderString(participant), 2);
+        personalSection.getChildren().add(personalGrid);
 
-        RadioButton absentRadio = new RadioButton("Absent - Ne s'est pas présenté");
-        absentRadio.setToggleGroup(group);
-        absentRadio.setSelected(participation.getStatut().equals("absent"));
-        absentRadio.setFont(Font.font("Arial", 13));
+        // Section Participation
+        VBox participationSection = createDetailSection("🎟️ Détails de participation");
+        GridPane participationGrid = createDetailGrid();
+        addDetailRow(participationGrid, "📞 Contact :", participation.getContact(), 0);
 
-        radioBox.getChildren().addAll(inscritRadio, presentRadio, absentRadio);
+        // Ligne avec badge de statut
+        Label statutLabel = new Label("📊 Statut :");
+        statutLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: " + DARK_COLOR + ";");
+        statutLabel.setWrapText(true);
+        HBox statutBox = new HBox(10);
+        Label statutBadge = new Label(participation.getStatut().toUpperCase());
+        statutBadge.setFont(Font.font("Arial", FontWeight.BOLD, 12));
+        statutBadge.setTextFill(Color.WHITE);
+        statutBadge.setPadding(new Insets(4, 15, 4, 15));
+        statutBadge.setStyle("-fx-background-color: " + getStatusColor(participation.getStatut()) + "; -fx-background-radius: 15;");
+        statutBox.getChildren().add(statutBadge);
 
-        HBox buttonBox = new HBox(10);
-        buttonBox.setAlignment(Pos.CENTER_RIGHT);
-        buttonBox.setPadding(new Insets(10, 0, 0, 0));
+        participationGrid.add(statutLabel, 0, 1);
+        participationGrid.add(statutBox, 1, 1);
 
-        Button cancelBtn = new Button("Annuler");
-        cancelBtn.setStyle("-fx-background-color: #e2e8f0; -fx-text-fill: #1e293b; " +
-                "-fx-font-weight: bold; -fx-padding: 10 20; -fx-background-radius: 6; -fx-cursor: hand;");
-        cancelBtn.setOnAction(e -> dialog.close());
+        addDetailRow(participationGrid, "📅 Date d'inscription :", participation.getFormattedDate(), 2);
+        participationSection.getChildren().add(participationGrid);
 
-        Button saveBtn = new Button("Enregistrer");
-        saveBtn.setStyle("-fx-background-color: #10b981; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-padding: 10 20; -fx-background-radius: 6; -fx-cursor: hand;");
-        saveBtn.setOnAction(e -> {
-            String newStatut = "";
-            if (inscritRadio.isSelected()) newStatut = "inscrit";
-            else if (presentRadio.isSelected()) newStatut = "present";
-            else if (absentRadio.isSelected()) newStatut = "absent";
+        // Section Événement
+        VBox eventSection = createDetailSection("📅 Événement associé");
+        GridPane eventGrid = createDetailGrid();
+        addDetailRow(eventGrid, "🎯 Titre :", event.getTitre(), 0);
+        addDetailRow(eventGrid, "📆 Date :", event.getFormattedDate(), 1);
+        addDetailRow(eventGrid, "📍 Lieu :", event.getLieu() != null ? event.getLieu() : "Non spécifié", 2);
 
-            if (!newStatut.isEmpty() && !newStatut.equals(participation.getStatut())) {
-                boolean success = participationService.updateStatut(
-                        participation.getIdEvenement(),
-                        participation.getIdUser(),
-                        newStatut
-                );
+        // Organisateur
+        User organizer = userService.getUserById(event.getId_organisateur());
+        String organizerName = organizer != null ? organizer.getPrenom() + " " + organizer.getNom() : "Inconnu";
+        addDetailRow(eventGrid, "👤 Organisateur :", organizerName, 3);
 
-                if (success) {
-                    Event selectedEvent = eventSelector.getValue();
-                    if (selectedEvent != null) {
-                        loadParticipantsForEvent(selectedEvent);
-                    }
-                    loadEvents();
-                    dialog.close();
+        eventSection.getChildren().add(eventGrid);
 
-                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                    alert.setTitle("Succès");
-                    alert.setHeaderText(null);
-                    alert.setContentText("Statut mis à jour avec succès !");
-                    alert.showAndWait();
-                }
-            } else {
-                dialog.close();
-            }
+        // Boutons d'action
+        HBox buttons = new HBox(10);
+        buttons.setAlignment(Pos.CENTER);
+        buttons.setPadding(new Insets(20, 0, 0, 0));
+
+        Button presentBtn = createDetailButton("✅ Marquer présent", SUCCESS_COLOR);
+        presentBtn.setOnAction(e -> {
+            updateStatus(participation, "present");
+            dialog.close();
         });
 
-        buttonBox.getChildren().addAll(cancelBtn, saveBtn);
-        content.getChildren().addAll(title, participantName, radioBox, buttonBox);
+        Button absentBtn = createDetailButton("❌ Marquer absent", DANGER_COLOR);
+        absentBtn.setOnAction(e -> {
+            updateStatus(participation, "absent");
+            dialog.close();
+        });
 
-        Scene scene = new Scene(content);
+        Button exportBtn = createDetailButton("📥 Exporter", "#3b82f6");
+        exportBtn.setOnAction(e -> {
+            exportSingleParticipant(participation);
+            dialog.close();
+        });
+
+        Button closeBtn = createDetailButton("Fermer", BORDER_COLOR);
+        closeBtn.setTextFill(Color.web(DARK_COLOR));
+        closeBtn.setOnAction(e -> dialog.close());
+
+        buttons.getChildren().addAll(presentBtn, absentBtn, exportBtn, closeBtn);
+
+        content.getChildren().addAll(header, personalSection, participationSection, eventSection, buttons);
+
+        ScrollPane scrollPane = new ScrollPane(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
+
+        Scene scene = new Scene(scrollPane, 600, 750);
         dialog.setScene(scene);
         dialog.show();
     }
 
-    private void exportParticipantsToCSV() {
-        Event selectedEvent = eventSelector.getValue();
-        if (selectedEvent == null) {
-            Alert alert = new Alert(Alert.AlertType.WARNING);
-            alert.setTitle("Attention");
-            alert.setHeaderText(null);
-            alert.setContentText("Veuillez sélectionner un événement d'abord.");
-            alert.showAndWait();
+    private VBox createDetailSection(String title) {
+        VBox section = new VBox(8);
+        section.setPadding(new Insets(15));
+        section.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 8; " +
+                "-fx-border-color: " + BORDER_COLOR + "; -fx-border-radius: 8;");
+
+        Label titleLabel = new Label(title);
+        titleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+        titleLabel.setTextFill(Color.web(DARK_COLOR));
+        titleLabel.setWrapText(true);
+
+        section.getChildren().add(titleLabel);
+        return section;
+    }
+
+    private GridPane createDetailGrid() {
+        GridPane grid = new GridPane();
+        grid.setHgap(20);
+        grid.setVgap(12);
+        grid.setPadding(new Insets(10, 0, 5, 0));
+        return grid;
+    }
+
+    private void addDetailRow(GridPane grid, String label, String value, int row) {
+        Label labelField = new Label(label);
+        labelField.setStyle("-fx-font-weight: bold; -fx-text-fill: " + DARK_COLOR + ";");
+        labelField.setWrapText(true);
+        Label valueField = new Label(value);
+        valueField.setStyle("-fx-text-fill: " + DARK_COLOR + ";");
+        valueField.setWrapText(true);
+        grid.add(labelField, 0, row);
+        grid.add(valueField, 1, row);
+    }
+
+    private Button createDetailButton(String text, String color) {
+        Button btn = new Button(text);
+        btn.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-padding: 10 20; -fx-background-radius: 6; -fx-cursor: hand;");
+        btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: " + darkenColor(color) + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-padding: 10 20; -fx-background-radius: 6; -fx-cursor: hand;"));
+        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-padding: 10 20; -fx-background-radius: 6; -fx-cursor: hand;"));
+        return btn;
+    }
+
+    /**
+     * RAPPORT STATISTIQUE AMÉLIORÉ - CORRIGÉ
+     */
+    private void showDetailedStats() {
+        Stage statsStage = new Stage();
+        statsStage.initModality(Modality.APPLICATION_MODAL);
+        statsStage.setTitle("Rapport statistique - Participants");
+
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(30));
+        content.setStyle("-fx-background-color: white;");
+        content.setPrefWidth(750);
+        content.setMaxWidth(800);
+
+        // Titre
+        Label title = new Label("📊 RAPPORT STATISTIQUE DÉTAILLÉ");
+        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 26));
+        title.setTextFill(Color.web(PRIMARY_COLOR));
+        title.setWrapText(true);
+        title.setAlignment(Pos.CENTER);
+        title.setTextAlignment(TextAlignment.CENTER);
+
+        // Date du rapport
+        Label dateLabel = new Label("Généré le " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy à HH:mm")));
+        dateLabel.setFont(Font.font("Arial", 14));
+        dateLabel.setTextFill(Color.web(DARK_COLOR));
+        dateLabel.setWrapText(true);
+        dateLabel.setAlignment(Pos.CENTER);
+
+        // Séparateur
+        Separator sep1 = new Separator();
+        sep1.setPadding(new Insets(10, 0, 10, 0));
+
+        // ========== SECTION 1 : STATISTIQUES GLOBALES ==========
+        VBox globalSection = new VBox(15);
+        globalSection.setPadding(new Insets(15));
+        globalSection.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 12; -fx-border-color: " + BORDER_COLOR + "; -fx-border-radius: 12;");
+
+        Label globalTitle = new Label("📈 STATISTIQUES GLOBALES");
+        globalTitle.setFont(Font.font("Arial", FontWeight.BOLD, 18));
+        globalTitle.setTextFill(Color.web(PRIMARY_COLOR));
+        globalTitle.setWrapText(true);
+
+        GridPane globalGrid = new GridPane();
+        globalGrid.setHgap(30);
+        globalGrid.setVgap(15);
+        globalGrid.setPadding(new Insets(10, 0, 5, 0));
+
+        // Ligne 1 : Total participants
+        Label totalLabel = new Label("👥 Total participants :");
+        totalLabel.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        totalLabel.setTextFill(Color.web(DARK_COLOR));
+        totalLabel.setWrapText(true);
+        Label totalValue = new Label(totalParticipantsLabel.getText());
+        totalValue.setFont(Font.font("Arial", FontWeight.BOLD, 18));
+        totalValue.setTextFill(Color.web(PRIMARY_COLOR));
+        totalValue.setWrapText(true);
+        globalGrid.add(totalLabel, 0, 0);
+        globalGrid.add(totalValue, 1, 0);
+
+        // Ligne 2 : Inscrits
+        Label inscritTotalLabel = new Label("📝 Inscrits :");
+        inscritTotalLabel.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        inscritTotalLabel.setTextFill(Color.web(DARK_COLOR));
+        inscritTotalLabel.setWrapText(true);
+        Label inscritTotalValue = new Label(totalInscritsLabel.getText());
+        inscritTotalValue.setFont(Font.font("Arial", FontWeight.BOLD, 18));
+        inscritTotalValue.setTextFill(Color.web("#3b82f6"));
+        inscritTotalValue.setWrapText(true);
+        globalGrid.add(inscritTotalLabel, 0, 1);
+        globalGrid.add(inscritTotalValue, 1, 1);
+
+        // Ligne 3 : Présents
+        Label presentTotalLabel = new Label("✅ Présents :");
+        presentTotalLabel.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        presentTotalLabel.setTextFill(Color.web(DARK_COLOR));
+        presentTotalLabel.setWrapText(true);
+        Label presentTotalValue = new Label(totalPresentsLabel.getText());
+        presentTotalValue.setFont(Font.font("Arial", FontWeight.BOLD, 18));
+        presentTotalValue.setTextFill(Color.web(SUCCESS_COLOR));
+        presentTotalValue.setWrapText(true);
+        globalGrid.add(presentTotalLabel, 0, 2);
+        globalGrid.add(presentTotalValue, 1, 2);
+
+        // Ligne 4 : Absents
+        Label absentTotalLabel = new Label("❌ Absents :");
+        absentTotalLabel.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        absentTotalLabel.setTextFill(Color.web(DARK_COLOR));
+        absentTotalLabel.setWrapText(true);
+        Label absentTotalValue = new Label(totalAbsentsLabel.getText());
+        absentTotalValue.setFont(Font.font("Arial", FontWeight.BOLD, 18));
+        absentTotalValue.setTextFill(Color.web(DANGER_COLOR));
+        absentTotalValue.setWrapText(true);
+        globalGrid.add(absentTotalLabel, 0, 3);
+        globalGrid.add(absentTotalValue, 1, 3);
+
+        // Ligne 5 : Taux de présence global
+        int totalGlobal = Integer.parseInt(totalParticipantsLabel.getText());
+        int presentsGlobal = Integer.parseInt(totalPresentsLabel.getText());
+        double tauxPresenceGlobal = totalGlobal > 0 ? (presentsGlobal * 100.0 / totalGlobal) : 0;
+
+        Label tauxGlobalLabel = new Label("📊 Taux de présence global :");
+        tauxGlobalLabel.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        tauxGlobalLabel.setTextFill(Color.web(DARK_COLOR));
+        tauxGlobalLabel.setWrapText(true);
+        Label tauxGlobalValue = new Label(String.format("%.1f%%", tauxPresenceGlobal));
+        tauxGlobalValue.setFont(Font.font("Arial", FontWeight.BOLD, 18));
+        tauxGlobalValue.setTextFill(Color.web(WARNING_COLOR));
+        tauxGlobalValue.setWrapText(true);
+        globalGrid.add(tauxGlobalLabel, 0, 4);
+        globalGrid.add(tauxGlobalValue, 1, 4);
+
+        globalSection.getChildren().addAll(globalTitle, globalGrid);
+
+        // ========== SECTION 2 : STATISTIQUES PAR ÉVÉNEMENT ==========
+        VBox eventSection = new VBox(15);
+        eventSection.setPadding(new Insets(15));
+        eventSection.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 12; -fx-border-color: " + BORDER_COLOR + "; -fx-border-radius: 12;");
+
+        Label eventSectionTitle = new Label("📋 STATISTIQUES PAR ÉVÉNEMENT");
+        eventSectionTitle.setFont(Font.font("Arial", FontWeight.BOLD, 18));
+        eventSectionTitle.setTextFill(Color.web(SUCCESS_COLOR));
+        eventSectionTitle.setWrapText(true);
+
+        VBox eventsContainer = new VBox(15);
+        eventsContainer.setPadding(new Insets(10, 0, 5, 0));
+
+        if (eventsData.isEmpty()) {
+            Label noEventLabel = new Label("Aucun événement trouvé");
+            noEventLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+            noEventLabel.setTextFill(Color.web(DARK_COLOR));
+            noEventLabel.setWrapText(true);
+            eventsContainer.getChildren().add(noEventLabel);
+        } else {
+            for (Event event : eventsData) {
+                List<Participation> eventParticipants = participationService.getParticipationsByEvent(event.getId_evenement());
+                long inscrits = eventParticipants.stream().filter(p -> "inscrit".equals(p.getStatut())).count();
+                long presents = eventParticipants.stream().filter(p -> "present".equals(p.getStatut())).count();
+                long absents = eventParticipants.stream().filter(p -> "absent".equals(p.getStatut())).count();
+                long total = eventParticipants.size();
+
+                VBox eventCard = new VBox(10);
+                eventCard.setPadding(new Insets(15));
+                eventCard.setStyle("-fx-background-color: white; -fx-background-radius: 8; -fx-border-color: " + BORDER_COLOR + "; -fx-border-radius: 8;");
+
+                // Nom de l'événement
+                Label eventName = new Label("🎯 " + event.getTitre());
+                eventName.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+                eventName.setTextFill(Color.web(PRIMARY_COLOR));
+                eventName.setWrapText(true);
+
+                // Date et lieu
+                Label eventInfo = new Label(event.getFormattedDate() + " - " + (event.getLieu() != null ? event.getLieu() : "Lieu non spécifié"));
+                eventInfo.setFont(Font.font("Arial", 13));
+                eventInfo.setTextFill(Color.web("#64748b"));
+                eventInfo.setWrapText(true);
+
+                // Grille des statistiques
+                GridPane eventStatGrid = new GridPane();
+                eventStatGrid.setHgap(25);
+                eventStatGrid.setVgap(10);
+                eventStatGrid.setPadding(new Insets(10, 0, 5, 0));
+
+                // Total
+                Label totalEventLabel = new Label("Total :");
+                totalEventLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+                totalEventLabel.setTextFill(Color.web(DARK_COLOR));
+                totalEventLabel.setWrapText(true);
+                Label totalEventValue = new Label(String.valueOf(total));
+                totalEventValue.setFont(Font.font("Arial", FontWeight.BOLD, 15));
+                totalEventValue.setTextFill(Color.web(PRIMARY_COLOR));
+                totalEventValue.setWrapText(true);
+                eventStatGrid.add(totalEventLabel, 0, 0);
+                eventStatGrid.add(totalEventValue, 1, 0);
+
+                // Inscrits
+                Label inscritEventLabel = new Label("Inscrits :");
+                inscritEventLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+                inscritEventLabel.setTextFill(Color.web(DARK_COLOR));
+                inscritEventLabel.setWrapText(true);
+                Label inscritEventValue = new Label(String.valueOf(inscrits));
+                inscritEventValue.setFont(Font.font("Arial", FontWeight.BOLD, 15));
+                inscritEventValue.setTextFill(Color.web("#3b82f6"));
+                inscritEventValue.setWrapText(true);
+                eventStatGrid.add(inscritEventLabel, 2, 0);
+                eventStatGrid.add(inscritEventValue, 3, 0);
+
+                // Présents
+                Label presentEventLabel = new Label("Présents :");
+                presentEventLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+                presentEventLabel.setTextFill(Color.web(DARK_COLOR));
+                presentEventLabel.setWrapText(true);
+                Label presentEventValue = new Label(String.valueOf(presents));
+                presentEventValue.setFont(Font.font("Arial", FontWeight.BOLD, 15));
+                presentEventValue.setTextFill(Color.web(SUCCESS_COLOR));
+                presentEventValue.setWrapText(true);
+                eventStatGrid.add(presentEventLabel, 0, 1);
+                eventStatGrid.add(presentEventValue, 1, 1);
+
+                // Absents
+                Label absentEventLabel = new Label("Absents :");
+                absentEventLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+                absentEventLabel.setTextFill(Color.web(DARK_COLOR));
+                absentEventLabel.setWrapText(true);
+                Label absentEventValue = new Label(String.valueOf(absents));
+                absentEventValue.setFont(Font.font("Arial", FontWeight.BOLD, 15));
+                absentEventValue.setTextFill(Color.web(DANGER_COLOR));
+                absentEventValue.setWrapText(true);
+                eventStatGrid.add(absentEventLabel, 2, 1);
+                eventStatGrid.add(absentEventValue, 3, 1);
+
+                // Taux de présence
+                double tauxPresenceEvent = total > 0 ? (presents * 100.0 / total) : 0;
+                Label tauxEventLabel = new Label("Taux présence :");
+                tauxEventLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+                tauxEventLabel.setTextFill(Color.web(DARK_COLOR));
+                tauxEventLabel.setWrapText(true);
+                Label tauxEventValue = new Label(String.format("%.1f%%", tauxPresenceEvent));
+                tauxEventValue.setFont(Font.font("Arial", FontWeight.BOLD, 15));
+                tauxEventValue.setTextFill(Color.web(WARNING_COLOR));
+                tauxEventValue.setWrapText(true);
+                eventStatGrid.add(tauxEventLabel, 0, 2);
+                eventStatGrid.add(tauxEventValue, 1, 2);
+
+                eventCard.getChildren().addAll(eventName, eventInfo, eventStatGrid);
+                eventsContainer.getChildren().add(eventCard);
+            }
+        }
+
+        eventSection.getChildren().addAll(eventSectionTitle, eventsContainer);
+
+        // ========== SECTION 3 : RÉPARTITION PAR STATUT ==========
+        VBox repartitionSection = new VBox(15);
+        repartitionSection.setPadding(new Insets(15));
+        repartitionSection.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 12; -fx-border-color: " + BORDER_COLOR + "; -fx-border-radius: 12;");
+
+        Label repartitionTitle = new Label("🔄 RÉPARTITION PAR STATUT");
+        repartitionTitle.setFont(Font.font("Arial", FontWeight.BOLD, 18));
+        repartitionTitle.setTextFill(Color.web(WARNING_COLOR));
+        repartitionTitle.setWrapText(true);
+
+        GridPane repartitionGrid = new GridPane();
+        repartitionGrid.setHgap(30);
+        repartitionGrid.setVgap(15);
+        repartitionGrid.setPadding(new Insets(10, 0, 5, 0));
+
+        int total = Integer.parseInt(totalParticipantsLabel.getText());
+        int inscrits = Integer.parseInt(totalInscritsLabel.getText());
+        int presents = Integer.parseInt(totalPresentsLabel.getText());
+        int absents = Integer.parseInt(totalAbsentsLabel.getText());
+
+        // Pourcentages
+        double pInscrits = total > 0 ? (inscrits * 100.0 / total) : 0;
+        double pPresents = total > 0 ? (presents * 100.0 / total) : 0;
+        double pAbsents = total > 0 ? (absents * 100.0 / total) : 0;
+
+        // Ligne Inscrits
+        Label repInscritLabel = new Label("📝 Inscrits :");
+        repInscritLabel.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        repInscritLabel.setTextFill(Color.web(DARK_COLOR));
+        repInscritLabel.setWrapText(true);
+        Label repInscritValue = new Label(inscrits + " (" + String.format("%.1f", pInscrits) + "%)");
+        repInscritValue.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        repInscritValue.setTextFill(Color.web("#3b82f6"));
+        repInscritValue.setWrapText(true);
+        repartitionGrid.add(repInscritLabel, 0, 0);
+        repartitionGrid.add(repInscritValue, 1, 0);
+
+        // Ligne Présents
+        Label repPresentLabel = new Label("✅ Présents :");
+        repPresentLabel.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        repPresentLabel.setTextFill(Color.web(DARK_COLOR));
+        repPresentLabel.setWrapText(true);
+        Label repPresentValue = new Label(presents + " (" + String.format("%.1f", pPresents) + "%)");
+        repPresentValue.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        repPresentValue.setTextFill(Color.web(SUCCESS_COLOR));
+        repPresentValue.setWrapText(true);
+        repartitionGrid.add(repPresentLabel, 0, 1);
+        repartitionGrid.add(repPresentValue, 1, 1);
+
+        // Ligne Absents
+        Label repAbsentLabel = new Label("❌ Absents :");
+        repAbsentLabel.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        repAbsentLabel.setTextFill(Color.web(DARK_COLOR));
+        repAbsentLabel.setWrapText(true);
+        Label repAbsentValue = new Label(absents + " (" + String.format("%.1f", pAbsents) + "%)");
+        repAbsentValue.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        repAbsentValue.setTextFill(Color.web(DANGER_COLOR));
+        repAbsentValue.setWrapText(true);
+        repartitionGrid.add(repAbsentLabel, 0, 2);
+        repartitionGrid.add(repAbsentValue, 1, 2);
+
+        repartitionSection.getChildren().addAll(repartitionTitle, repartitionGrid);
+
+        // Bouton Fermer
+        Button closeBtn = new Button("Fermer le rapport");
+        closeBtn.setStyle("-fx-background-color: " + PRIMARY_COLOR + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-padding: 12 30; -fx-background-radius: 8; -fx-cursor: hand; -fx-font-size: 14px;");
+        closeBtn.setOnAction(e -> statsStage.close());
+
+        VBox buttonBox = new VBox(closeBtn);
+        buttonBox.setAlignment(Pos.CENTER);
+        buttonBox.setPadding(new Insets(20, 0, 0, 0));
+
+        // Assemblage final
+        content.getChildren().addAll(
+                title,
+                dateLabel,
+                sep1,
+                globalSection,
+                eventSection,
+                repartitionSection,
+                buttonBox
+        );
+
+        ScrollPane scrollPane = new ScrollPane(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+
+        Scene scene = new Scene(scrollPane, 800, 800);
+        statsStage.setScene(scene);
+        statsStage.show();
+    }
+
+    // ==================== MÉTHODES D'EXPORT ====================
+
+    /**
+     * EXPORT TOUS LES PARTICIPANTS
+     */
+    private void exportAllParticipants() {
+        if (allParticipations.isEmpty()) {
+            showWarning("Aucun participant à exporter");
             return;
         }
 
-        List<Participation> participants = participantsTable.getItems();
+        String timestamp = LocalDateTime.now().format(EXPORT_FILE_DATE_FORMAT);
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Exporter tous les participants");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Fichier CSV", "*.csv"));
+        fileChooser.setInitialFileName("participants_complet_" + timestamp + ".csv");
 
-        try {
-            String fileName = "participants_" + selectedEvent.getTitre().replace(" ", "_") +
-                    "_" + LocalDate.now() + ".csv";
+        File file = fileChooser.showSaveDialog(null);
+        if (file == null) return;
 
-            try (FileWriter writer = new FileWriter(fileName)) {
-                // En-tête CSV
-                writer.write("ID,Prénom,Nom,Email,Email de contact,Âge,Statut,Date d'inscription\n");
+        try (PrintWriter writer = new PrintWriter(new FileWriter(file, StandardCharsets.UTF_8))) {
 
-                for (Participation p : participants) {
-                    User user = userService.getUserById(p.getIdUser());
-                    if (user != null) {
-                        writer.write(String.format("%d,%s,%s,%s,%s,%s,%s,%s\n",
-                                p.getId(),
-                                escapeCsv(user.getPrenom()),
-                                escapeCsv(user.getNom()),
-                                escapeCsv(user.getEmail()),
-                                escapeCsv(p.getContact()),
-                                p.getAge() != null ? p.getAge() : "-",
-                                p.getStatut(),
-                                p.getFormattedDate()
-                        ));
-                    }
-                }
+            // En-tête du rapport
+            writer.println("#RAPPORT DES PARTICIPANTS");
+            writer.println("#Date d'export: " + LocalDateTime.now().format(EXPORT_DATETIME_FORMAT));
+            writer.println("#Exporté par: " + currentUser.getPrenom() + " " + currentUser.getNom());
+            writer.println("#Total participants: " + allParticipations.size());
+            writer.println("#");
+
+            // En-tête des colonnes
+            writer.println("ID_Participant;Nom;Prénom;Email;Contact;Âge;Statut;Nom_Événement;Date_Événement;Lieu_Événement;Date_Inscription");
+
+            // Données
+            for (Participation p : allParticipations) {
+                User user = userService.getUserById(p.getIdUser());
+                Event event = eventService.getEventById(p.getIdEvenement());
+                if (user == null || event == null) continue;
+
+                writer.println(String.format("%d;%s;%s;%s;%s;%s;%s;%s;%s;%s;%s",
+                        p.getId(),
+                        escapeCSV(user.getNom()),
+                        escapeCSV(user.getPrenom()),
+                        escapeCSV(user.getEmail()),
+                        escapeCSV(p.getContact() != null ? p.getContact() : ""),
+                        p.getAge() != null ? p.getAge() : "",
+                        p.getStatut(),
+                        escapeCSV(event.getTitre()),
+                        event.getDate_evenement() != null ? event.getDate_evenement().format(EXPORT_DATE_FORMAT) : "",
+                        escapeCSV(event.getLieu() != null ? event.getLieu() : ""),
+                        p.getDateInscription() != null ? p.getDateInscription().toLocalDateTime().format(EXPORT_DATETIME_FORMAT) : ""
+                ));
             }
 
-            Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setTitle("Succès");
-            alert.setHeaderText(null);
-            alert.setContentText("✅ Export réussi !\nFichier: " + fileName);
-            alert.showAndWait();
+            showSuccess("Export réussi : " + file.getName() + "\n" +
+                    allParticipations.size() + " participants exportés");
 
         } catch (Exception e) {
+            showError("Échec de l'export: " + e.getMessage());
             e.printStackTrace();
-            Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.setTitle("Erreur");
-            alert.setHeaderText(null);
-            alert.setContentText("❌ Erreur lors de l'export: " + e.getMessage());
-            alert.showAndWait();
         }
     }
 
-    private void exportAllParticipants() {
-        List<Event> events = eventService.getEventsByOrganisateur(currentUser.getId());
+    /**
+     * EXPORT D'UN SEUL PARTICIPANT
+     */
+    private void exportSingleParticipant(Participation p) {
+        User user = userService.getUserById(p.getIdUser());
+        Event event = eventService.getEventById(p.getIdEvenement());
+        if (user == null || event == null) return;
 
-        try {
-            String fileName = "tous_participants_" + LocalDate.now() + ".csv";
+        String timestamp = LocalDateTime.now().format(EXPORT_FILE_DATE_FORMAT);
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Exporter participant");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Fichier CSV", "*.csv"));
+        fileChooser.setInitialFileName("participant_" + user.getNom() + "_" + user.getPrenom() + "_" + timestamp + ".csv");
 
-            try (FileWriter writer = new FileWriter(fileName)) {
-                // En-tête CSV
-                writer.write("ID,Prénom,Nom,Email,Email de contact,Âge,Statut,Événement,Date événement,Date inscription\n");
+        File file = fileChooser.showSaveDialog(null);
+        if (file == null) return;
 
-                for (Event event : events) {
-                    List<Participation> participants = participationService.getParticipationsByEvent(event.getId_evenement());
+        try (PrintWriter writer = new PrintWriter(new FileWriter(file, StandardCharsets.UTF_8))) {
 
-                    for (Participation p : participants) {
-                        User user = userService.getUserById(p.getIdUser());
-                        if (user != null) {
-                            writer.write(String.format("%d,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
-                                    p.getId(),
-                                    escapeCsv(user.getPrenom()),
-                                    escapeCsv(user.getNom()),
-                                    escapeCsv(user.getEmail()),
-                                    escapeCsv(p.getContact()),
-                                    p.getAge() != null ? p.getAge() : "-",
-                                    p.getStatut(),
-                                    escapeCsv(event.getTitre()),
-                                    event.getFormattedDate(),
-                                    p.getFormattedDate()
-                            ));
-                        }
-                    }
-                }
+            writer.println("#FICHE INDIVIDUELLE DU PARTICIPANT");
+            writer.println("#Date d'export: " + LocalDateTime.now().format(EXPORT_DATETIME_FORMAT));
+            writer.println("#Exporté par: " + currentUser.getPrenom() + " " + currentUser.getNom());
+            writer.println("#");
+
+            writer.println("Catégorie;Information");
+            writer.println("ID Participant;" + p.getId());
+            writer.println("Nom;" + escapeCSV(user.getNom()));
+            writer.println("Prénom;" + escapeCSV(user.getPrenom()));
+            writer.println("Nom complet;" + escapeCSV(user.getPrenom() + " " + user.getNom()));
+            writer.println("Email;" + escapeCSV(user.getEmail()));
+            writer.println("Âge;" + (p.getAge() != null ? p.getAge() : ""));
+            writer.println("Genre;" + getGenderString(user));
+            writer.println("");
+            writer.println("Contact;" + escapeCSV(p.getContact() != null ? p.getContact() : ""));
+            writer.println("Statut;" + p.getStatut());
+            writer.println("Date d'inscription;" + (p.getDateInscription() != null ?
+                    p.getDateInscription().toLocalDateTime().format(EXPORT_DATETIME_FORMAT) : ""));
+            writer.println("");
+            writer.println("Événement;" + escapeCSV(event.getTitre()));
+            writer.println("Date événement;" + (event.getDate_evenement() != null ?
+                    event.getDate_evenement().format(EXPORT_DATETIME_FORMAT) : ""));
+            writer.println("Lieu;" + escapeCSV(event.getLieu() != null ? event.getLieu() : ""));
+
+            User organizer = userService.getUserById(event.getId_organisateur());
+            if (organizer != null) {
+                writer.println("Organisateur;" + escapeCSV(organizer.getPrenom() + " " + organizer.getNom()));
+                writer.println("Email organisateur;" + escapeCSV(organizer.getEmail()));
             }
 
-            Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setTitle("Succès");
-            alert.setHeaderText(null);
-            alert.setContentText("✅ Export de tous les participants réussi !\nFichier: " + fileName);
-            alert.showAndWait();
+            showSuccess("Export réussi : " + file.getName());
 
         } catch (Exception e) {
-            e.printStackTrace();
-            Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.setTitle("Erreur");
-            alert.setHeaderText(null);
-            alert.setContentText("❌ Erreur lors de l'export: " + e.getMessage());
-            alert.showAndWait();
+            showError("Échec de l'export: " + e.getMessage());
         }
     }
 
-    private String escapeCsv(String value) {
-        if (value == null) return "";
-        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
-            return "\"" + value.replace("\"", "\"\"") + "\"";
+    /**
+     * ÉCHAPPEMENT CSV
+     */
+    private String escapeCSV(String value) {
+        if (value == null || value.isEmpty()) return "";
+
+        String escaped = value.replace("\"", "\"\"");
+
+        if (escaped.contains(";") || escaped.contains(",") || escaped.contains("\n") || escaped.contains("\r") || escaped.contains("\"")) {
+            return "\"" + escaped + "\"";
         }
-        return value;
+        return escaped;
+    }
+
+    private String getGenderString(User user) {
+        if (user.getIdGenre() == 1) return "Homme";
+        if (user.getIdGenre() == 2) return "Femme";
+        return "Non spécifié";
+    }
+
+    private String getStatusColor(String statut) {
+        switch (statut.toLowerCase()) {
+            case "inscrit": return "#3b82f6";
+            case "present": return SUCCESS_COLOR;
+            case "absent": return DANGER_COLOR;
+            default: return "#94a3b8";
+        }
+    }
+
+    /**
+     * MESSAGES
+     */
+    private void showSuccess(String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Succès");
+        alert.setHeaderText(null);
+        alert.setContentText("✅ " + message);
+        alert.showAndWait();
+    }
+
+    private void showError(String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Erreur");
+        alert.setHeaderText(null);
+        alert.setContentText("❌ " + message);
+        alert.showAndWait();
+    }
+
+    private void showWarning(String message) {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle("Attention");
+        alert.setHeaderText(null);
+        alert.setContentText("⚠️ " + message);
+        alert.showAndWait();
     }
 }

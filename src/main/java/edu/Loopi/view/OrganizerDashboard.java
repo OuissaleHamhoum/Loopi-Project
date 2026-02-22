@@ -14,7 +14,6 @@ import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
-import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 import java.util.List;
@@ -25,12 +24,14 @@ public class OrganizerDashboard {
     private EventService eventService;
     private ProduitService produitService;
     private NotificationService notificationService;
+    private NotificationsContentView notificationsContentView;
 
     public OrganizerDashboard(User user) {
         this.currentUser = user;
         this.eventService = new EventService();
         this.produitService = new ProduitService();
         this.notificationService = new NotificationService();
+        this.notificationsContentView = new NotificationsContentView(user, notificationService);
         SessionManager.login(user);
         System.out.println("✅ OrganizerDashboard initialisé pour: " + user.getEmail());
     }
@@ -156,7 +157,7 @@ public class OrganizerDashboard {
         Button productsBtn = createMenuButton("📦 Mes produits");
         productsBtn.setOnAction(e -> showMyProducts());
 
-        // Section ÉVÉNEMENTS
+        // Section ÉVÉNEMENTS - UN SEUL BOUTON
         Label eventsLabel = new Label("  ÉVÉNEMENTS");
         eventsLabel.setFont(Font.font("Arial", FontWeight.BOLD, 12));
         eventsLabel.setTextFill(Color.web("#bdc3c7"));
@@ -165,10 +166,7 @@ public class OrganizerDashboard {
         Button eventsBtn = createMenuButton("📅 Mes événements");
         eventsBtn.setOnAction(e -> showMyEvents());
 
-        Button addEventBtn = createMenuButton("➕ Créer événement");
-        addEventBtn.setOnAction(e -> showMyEvents());
-
-        // Section PARTICIPANTS (NOUVEAU)
+        // Section PARTICIPANTS
         Label participantsLabel = new Label("  PARTICIPANTS");
         participantsLabel.setFont(Font.font("Arial", FontWeight.BOLD, 12));
         participantsLabel.setTextFill(Color.web("#bdc3c7"));
@@ -195,7 +193,7 @@ public class OrganizerDashboard {
         Button statsBtn = createMenuButton("📊 Tableau de bord");
         statsBtn.setOnAction(e -> showStatistics());
 
-        // Section NOTIFICATIONS
+        // Section NOTIFICATIONS - MODIFIÉ POUR AFFICHER DANS LE CONTENU PRINCIPAL
         Label notifLabel = new Label("  NOTIFICATIONS");
         notifLabel.setFont(Font.font("Arial", FontWeight.BOLD, 12));
         notifLabel.setTextFill(Color.web("#bdc3c7"));
@@ -203,7 +201,7 @@ public class OrganizerDashboard {
 
         Button notificationsBtn = createMenuButton("🔔 Notifications");
         updateNotificationBadge(notificationsBtn);
-        notificationsBtn.setOnAction(e -> showNotifications());
+        notificationsBtn.setOnAction(e -> showNotificationsInContent());
 
         // Section PROFIL
         Label profilLabel = new Label("  PROFIL");
@@ -228,8 +226,8 @@ public class OrganizerDashboard {
         menuItems.setPadding(new Insets(10, 10, 10, 10));
         menuItems.getChildren().addAll(
                 produitsLabel, productsBtn,
-                eventsLabel, eventsBtn, addEventBtn,
-                participantsLabel, participantsBtn, // NOUVEAU BOUTON
+                eventsLabel, eventsBtn, // UN SEUL BOUTON
+                participantsLabel, participantsBtn,
                 collectesLabel, donationsBtn,
                 statsLabel, statsBtn,
                 notifLabel, notificationsBtn,
@@ -298,7 +296,6 @@ public class OrganizerDashboard {
     }
 
     private void refreshDashboard() {
-        // Rafraîchir le badge de notifications
         VBox sidebar = (VBox) root.getLeft();
         for (var node : sidebar.getChildren()) {
             if (node instanceof VBox) {
@@ -316,162 +313,12 @@ public class OrganizerDashboard {
         }
     }
 
-    private void showNotifications() {
-        Stage notifStage = new Stage();
-        notifStage.setTitle("Notifications");
-        notifStage.initModality(Modality.APPLICATION_MODAL);
-        notifStage.setResizable(false);
-
-        VBox content = new VBox(20);
-        content.setPadding(new Insets(25));
-        content.setStyle("-fx-background-color: white;");
-        content.setPrefWidth(600);
-        content.setPrefHeight(500);
-
-        // En-tête
-        HBox header = new HBox(15);
-        header.setAlignment(Pos.CENTER_LEFT);
-        header.setPadding(new Insets(0, 0, 15, 0));
-        header.setStyle("-fx-border-color: #e2e8f0; -fx-border-width: 0 0 1 0;");
-
-        Label iconLabel = new Label("🔔");
-        iconLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 32));
-
-        VBox headerText = new VBox(5);
-        Label titleLabel = new Label("Notifications");
-        titleLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 24));
-        titleLabel.setTextFill(Color.web("#0f172a"));
-
-        int nonLues = notificationService.countNotificationsNonLues(currentUser.getId());
-        Label subtitleLabel = new Label(nonLues + " notification(s) non lue(s)");
-        subtitleLabel.setFont(Font.font("Segoe UI", 12));
-        subtitleLabel.setTextFill(Color.web("#475569"));
-
-        headerText.getChildren().addAll(titleLabel, subtitleLabel);
-        header.getChildren().addAll(iconLabel, headerText);
-
-        // Bouton tout marquer comme lu
-        Button markAllReadBtn = new Button("✓ Tout marquer comme lu");
-        markAllReadBtn.setStyle("-fx-background-color: #3b82f6; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-padding: 8 15; -fx-background-radius: 6; -fx-cursor: hand;");
-        markAllReadBtn.setOnAction(e -> {
-            notificationService.marquerToutesCommeLues(currentUser.getId());
-            notifStage.close();
-            showNotifications();
-            refreshDashboard();
-        });
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        header.getChildren().addAll(spacer, markAllReadBtn);
-
-        // Liste des notifications
-        List<Notification> notifications = notificationService.getNotificationsForOrganisateur(currentUser.getId());
-
-        if (notifications.isEmpty()) {
-            VBox emptyBox = new VBox(15);
-            emptyBox.setAlignment(Pos.CENTER);
-            emptyBox.setPadding(new Insets(40));
-
-            Label emptyIcon = new Label("🔔");
-            emptyIcon.setFont(Font.font("Segoe UI", FontWeight.BOLD, 48));
-
-            Label emptyText = new Label("Aucune notification");
-            emptyText.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
-            emptyText.setTextFill(Color.web("#1e293b"));
-
-            Label emptySub = new Label("Les notifications apparaîtront ici");
-            emptySub.setFont(Font.font("Segoe UI", 14));
-            emptySub.setTextFill(Color.web("#64748b"));
-
-            emptyBox.getChildren().addAll(emptyIcon, emptyText, emptySub);
-            content.getChildren().addAll(header, emptyBox);
-        } else {
-            ListView<Notification> notificationList = new ListView<>();
-            notificationList.setPrefHeight(350);
-            notificationList.setCellFactory(lv -> new ListCell<Notification>() {
-                @Override
-                protected void updateItem(Notification n, boolean empty) {
-                    super.updateItem(n, empty);
-                    if (empty || n == null) {
-                        setText(null);
-                        setGraphic(null);
-                    } else {
-                        VBox cell = new VBox(8);
-                        cell.setPadding(new Insets(12));
-
-                        String bgColor = n.isRead() ? "#f8fafc" : "#eff6ff";
-                        String borderColor = n.isRead() ? "#e2e8f0" : "#3b82f6";
-
-                        cell.setStyle("-fx-background-color: " + bgColor + "; -fx-background-radius: 8; " +
-                                "-fx-border-color: " + borderColor + "; -fx-border-radius: 8; " +
-                                "-fx-border-width: " + (n.isRead() ? "1" : "2") + ";");
-
-                        HBox headerCell = new HBox(10);
-                        headerCell.setAlignment(Pos.CENTER_LEFT);
-
-                        String icon = "NOUVEAU_PARTICIPANT".equals(n.getType()) ? "👤" : "🚫";
-                        Label iconLabel = new Label(icon);
-                        iconLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
-
-                        Label titleCell = new Label(n.getTitre());
-                        titleCell.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
-                        titleCell.setTextFill(Color.web("#0f172a"));
-
-                        Label timeLabel = new Label(n.getFormattedDate());
-                        timeLabel.setFont(Font.font(11));
-                        timeLabel.setTextFill(Color.web("#64748b"));
-
-                        Region spacer = new Region();
-                        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-                        if (!n.isRead()) {
-                            Label newBadge = new Label("NOUVEAU");
-                            newBadge.setStyle("-fx-background-color: #3b82f6; -fx-text-fill: white; " +
-                                    "-fx-padding: 2 8; -fx-background-radius: 12; -fx-font-size: 10; -fx-font-weight: bold;");
-                            headerCell.getChildren().addAll(iconLabel, titleCell, spacer, newBadge, timeLabel);
-                        } else {
-                            headerCell.getChildren().addAll(iconLabel, titleCell, spacer, timeLabel);
-                        }
-
-                        Label messageCell = new Label(n.getMessage());
-                        messageCell.setWrapText(true);
-                        messageCell.setFont(Font.font(12));
-                        messageCell.setTextFill(Color.web("#475569"));
-
-                        cell.getChildren().addAll(headerCell, messageCell);
-
-                        setGraphic(cell);
-
-                        setOnMouseClicked(e -> {
-                            if (!n.isRead()) {
-                                notificationService.marquerCommeLue(n.getId());
-                                refreshDashboard();
-                                getListView().refresh();
-                            }
-                        });
-                    }
-                }
-            });
-
-            notificationList.getItems().addAll(notifications);
-            content.getChildren().addAll(header, notificationList);
-        }
-
-        Button closeBtn = new Button("Fermer");
-        closeBtn.setStyle("-fx-background-color: #e2e8f0; -fx-text-fill: #1e293b; " +
-                "-fx-font-weight: bold; -fx-padding: 10 25; -fx-background-radius: 8; -fx-cursor: hand;");
-        closeBtn.setOnAction(e -> notifStage.close());
-
-        VBox buttonBox = new VBox(closeBtn);
-        buttonBox.setAlignment(Pos.CENTER);
-        buttonBox.setPadding(new Insets(15, 0, 0, 0));
-        content.getChildren().add(buttonBox);
-
-        Scene scene = new Scene(content);
-        notifStage.setScene(scene);
-        notifStage.initOwner(root.getScene().getWindow());
-        notifStage.show();
+    // NOUVELLE MÉTHODE - Afficher les notifications dans le contenu principal
+    private void showNotificationsInContent() {
+        VBox content = notificationsContentView.getView();
+        content.setOnMouseClicked(e -> refreshDashboard());
+        root.setCenter(content);
+        refreshDashboard();
     }
 
     private VBox createMainContent() {
@@ -542,7 +389,7 @@ public class OrganizerDashboard {
         viewParticipantsBtn.setOnAction(e -> showParticipantsManagement());
 
         Button viewNotificationsBtn = createQuickActionButton("🔔 Voir notifications");
-        viewNotificationsBtn.setOnAction(e -> showNotifications());
+        viewNotificationsBtn.setOnAction(e -> showNotificationsInContent());
 
         actionsBox.getChildren().clear();
         actionsBox.getChildren().addAll(
@@ -637,7 +484,6 @@ public class OrganizerDashboard {
         }
     }
 
-    // NOUVELLE MÉTHODE - Gestion des participants
     private void showParticipantsManagement() {
         try {
             Class.forName("edu.Loopi.view.ParticipantsView");
@@ -725,5 +571,4 @@ public class OrganizerDashboard {
         alert.setContentText(message);
         alert.showAndWait();
     }
-
 }

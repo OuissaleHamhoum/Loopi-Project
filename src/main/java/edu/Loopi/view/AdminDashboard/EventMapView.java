@@ -65,7 +65,6 @@ public class EventMapView {
     private ToggleGroup filterGroup;
     private boolean mapReady = false;
     private ProgressIndicator loadingIndicator;
-    private List<Event> allEvents = new ArrayList<>();
 
     // Constantes
     private static final String PROJECT_ROOT = System.getProperty("user.dir");
@@ -136,20 +135,20 @@ public class EventMapView {
         zoomInBtn.setStyle("-fx-background-color: " + adminDashboard.getAccentColor() +
                 "; -fx-text-fill: white; -fx-font-size: 16px; -fx-min-width: 36; -fx-min-height: 36; -fx-background-radius: 18; -fx-cursor: hand;");
         zoomInBtn.setOnAction(e -> {
-            if (mapReady) webEngine.executeScript("if(map) map.zoomIn()");
+            if (mapReady) webEngine.executeScript("if(window.map) map.zoomIn()");
         });
 
         zoomSlider = new Slider(1, 18, 3);
         zoomSlider.setPrefWidth(150);
         zoomSlider.valueProperty().addListener((obs, old, val) -> {
-            if (mapReady) webEngine.executeScript("if(map) map.setZoom(" + val.intValue() + ")");
+            if (mapReady) webEngine.executeScript("if(window.map) map.setZoom(" + val.intValue() + ")");
         });
 
         Button zoomOutBtn = new Button("-");
         zoomOutBtn.setStyle("-fx-background-color: " + adminDashboard.getAccentColor() +
                 "; -fx-text-fill: white; -fx-font-size: 16px; -fx-min-width: 36; -fx-min-height: 36; -fx-background-radius: 18; -fx-cursor: hand;");
         zoomOutBtn.setOnAction(e -> {
-            if (mapReady) webEngine.executeScript("if(map) map.zoomOut()");
+            if (mapReady) webEngine.executeScript("if(window.map) map.zoomOut()");
         });
 
         zoomControls.getChildren().addAll(zoomInBtn, zoomSlider, zoomOutBtn);
@@ -199,15 +198,17 @@ public class EventMapView {
         Region spacer2 = new Region();
         HBox.setHgrow(spacer2, Priority.ALWAYS);
 
-        Button refreshBtn = new Button("🔄 Actualiser");
-        refreshBtn.setStyle("-fx-background-color: " + adminDashboard.getAccentColor() +
+        Button fitBoundsBtn = new Button("Ajuster la vue");
+        fitBoundsBtn.setStyle("-fx-background-color: " + adminDashboard.getSuccessColor() +
                 "; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 16; -fx-background-radius: 20; -fx-cursor: hand;");
-        refreshBtn.setOnAction(e -> refreshEvents());
+        fitBoundsBtn.setOnAction(e -> {
+            if (mapReady) webEngine.executeScript("if(typeof fitMapToEvents === 'function') fitMapToEvents()");
+        });
 
         secondRow.getChildren().addAll(
                 styleLabel, mapStyleSelector,
                 filterLabel, filterButtons,
-                spacer2, refreshBtn
+                spacer2, fitBoundsBtn
         );
 
         topBar.getChildren().addAll(firstRow, secondRow);
@@ -417,7 +418,7 @@ public class EventMapView {
     }
 
     private void loadEvents() {
-        allEvents = eventService.getAllEvents();
+        List<Event> allEvents = eventService.getAllEvents();
 
         // Compter les événements avec coordonnées
         List<Event> eventsWithCoords = new ArrayList<>();
@@ -430,40 +431,15 @@ public class EventMapView {
 
         final int eventCount = eventsWithCoords.size();
 
+        // Ajouter les événements immédiatement (pas de délai, positions fixes)
+        for (Event event : eventsWithCoords) {
+            addEventMarker(event);
+        }
+
         Platform.runLater(() -> {
-            // Ajouter chaque événement avec un délai
-            for (int i = 0; i < eventsWithCoords.size(); i++) {
-                final Event event = eventsWithCoords.get(i);
-                final int delay = i * 50;
-
-                // Utiliser un Timer pour éviter les problèmes de variables finales
-                new Thread(() -> {
-                    try {
-                        Thread.sleep(delay);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                    Platform.runLater(() -> addEventMarker(event));
-                }).start();
-            }
-
             totalEventsLabel.setText("(" + eventCount + " événements)");
             System.out.println("✅ " + eventCount + " événements chargés");
         });
-    }
-
-    private void refreshEvents() {
-        if (mapReady) {
-            webEngine.executeScript(
-                    "if (window.markers) {" +
-                            "  for(var id in markers) {" +
-                            "    if (map && map.hasLayer(markers[id])) map.removeLayer(markers[id]);" +
-                            "  }" +
-                            "  markers = {};" +
-                            "}"
-            );
-            loadEvents();
-        }
     }
 
     private void addEventMarker(Event event) {
@@ -547,26 +523,89 @@ public class EventMapView {
                 <style>
                     body { margin:0; padding:0; }
                     #map { width:100%; height:600px; background:#1a1a1a; }
-                    .event-marker { transition: transform 0.2s; cursor: pointer; }
-                    .event-marker:hover { transform: scale(1.2); z-index:1000; }
-                    .marker-pulse { animation: pulse 2s infinite; }
-                    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-                    .custom-popup .leaflet-popup-content-wrapper { border-radius: 12px; overflow: hidden; }
-                    .custom-popup .leaflet-popup-content { margin:0; width:300px; }
-                    .popup-image { width:100%; height:150px; object-fit:cover; background:#f0f0f0; }
-                    .popup-content { padding:15px; }
-                    .popup-title { font-size:18px; font-weight:bold; margin-bottom:8px; color:#333; }
-                    .popup-info { margin:5px 0; color:#666; font-size:13px; display:flex; align-items:center; gap:5px; }
-                    .popup-badge { display:inline-block; padding:4px 12px; border-radius:20px; font-size:11px; font-weight:bold; color:white; margin-top:8px; }
-                    .popup-footer { margin-top:12px; }
-                    .view-details-btn { background:#3182CE; color:white; border:none; padding:10px; border-radius:6px; width:100%; cursor:pointer; font-weight:bold; }
-                    .view-details-btn:hover { background:#2c5282; }
+                    .event-marker {
+                        transition: transform 0.2s;
+                        cursor: pointer;
+                        z-index: 10;
+                    }
+                    .event-marker:hover {
+                        transform: scale(1.2);
+                        z-index: 1000;
+                    }
+                    .marker-pulse {
+                        animation: pulse 2s infinite;
+                    }
+                    @keyframes pulse {
+                        0% { transform: scale(1); }
+                        50% { transform: scale(1.1); }
+                        100% { transform: scale(1); }
+                    }
+                    .custom-popup .leaflet-popup-content-wrapper {
+                        border-radius: 12px;
+                        overflow: hidden;
+                        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                    }
+                    .custom-popup .leaflet-popup-content {
+                        margin: 0;
+                        width: 300px;
+                    }
+                    .popup-image {
+                        width: 100%;
+                        height: 150px;
+                        object-fit: cover;
+                        background: #f0f0f0;
+                    }
+                    .popup-content {
+                        padding: 15px;
+                    }
+                    .popup-title {
+                        font-size: 18px;
+                        font-weight: bold;
+                        margin-bottom: 8px;
+                        color: #333;
+                    }
+                    .popup-info {
+                        margin: 5px 0;
+                        color: #666;
+                        font-size: 13px;
+                        display: flex;
+                        align-items: center;
+                        gap: 5px;
+                    }
+                    .popup-badge {
+                        display: inline-block;
+                        padding: 4px 12px;
+                        border-radius: 20px;
+                        font-size: 11px;
+                        font-weight: bold;
+                        color: white;
+                        margin-top: 8px;
+                    }
+                    .popup-footer {
+                        margin-top: 12px;
+                        text-align: center;
+                    }
+                    .view-details-btn {
+                        background: #3182CE;
+                        color: white;
+                        border: none;
+                        padding: 10px;
+                        border-radius: 6px;
+                        width: 100%;
+                        cursor: pointer;
+                        font-weight: bold;
+                        transition: background 0.2s;
+                    }
+                    .view-details-btn:hover {
+                        background: #2c5282;
+                    }
                 </style>
             </head>
             <body>
                 <div id="map"></div>
                 <script>
                     var map = L.map('map').setView([20.0, 0.0], 2);
+                    
                     var currentLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         attribution: '© OpenStreetMap'
                     }).addTo(map);
@@ -596,31 +635,58 @@ public class EventMapView {
                             
                             var marker = L.marker([lat, lng], {
                                 icon: createIcon(color, false),
-                                eventData: {id:id, title:title, date:date, lieu:lieu, participants:participants, imageUrl:imageUrl, statut:statut}
+                                eventData: {
+                                    id: id,
+                                    title: title,
+                                    date: date,
+                                    lieu: lieu,
+                                    participants: participants,
+                                    imageUrl: imageUrl,
+                                    statut: statut
+                                }
                             }).addTo(map);
                             
                             allMarkers.push(marker);
                             
-                            var popupContent = '<div><img src="'+imageUrl+'" class="popup-image" onerror="this.src=\\'https://via.placeholder.com/300x150/3182ce/ffffff?text=LOOPI\\'"><div class="popup-content">' +
-                                '<div class="popup-title">'+title+'</div>' +
-                                '<div class="popup-info">📅 '+date+'</div>' +
-                                '<div class="popup-info">📍 '+lieu+'</div>' +
-                                '<div class="popup-info">👥 '+participants+' participants</div>' +
-                                '<span class="popup-badge" style="background:'+color+'">'+statut+'</span>' +
-                                '<div class="popup-footer">' +
-                                '<button class="view-details-btn" onclick="viewDetails('+id+')">👁️ Voir détails</button></div></div></div>';
+                            var popupContent = '<div>' +
+                                '<img src="'+imageUrl+'" class="popup-image" onerror="this.src=\\'https://via.placeholder.com/300x150/3182ce/ffffff?text=LOOPI\\'">' +
+                                '<div class="popup-content">' +
+                                    '<div class="popup-title">'+title+'</div>' +
+                                    '<div class="popup-info">📅 '+date+'</div>' +
+                                    '<div class="popup-info">📍 '+lieu+'</div>' +
+                                    '<div class="popup-info">👥 '+participants+' participants</div>' +
+                                    '<span class="popup-badge" style="background:'+color+'">'+statut+'</span>' +
+                                    '<div class="popup-footer">' +
+                                        '<button class="view-details-btn" onclick="viewDetails('+id+')">👁️ Voir détails</button>' +
+                                    '</div>' +
+                                '</div>' +
+                            '</div>';
                             
-                            marker.bindPopup(popupContent, {className:'custom-popup', minWidth:300});
+                            marker.bindPopup(popupContent, {
+                                className: 'custom-popup',
+                                minWidth: 300,
+                                maxWidth: 300,
+                                autoPan: true,
+                                autoPanPadding: [50, 50]
+                            });
                             
                             marker.on('mouseover', function() {
                                 this.setIcon(createIcon(color, true));
                                 var d = this.options.eventData;
-                                if (window.javaApp) window.javaApp.showPreview(d.id, d.title, d.date, d.lieu, d.participants, d.imageUrl);
+                                if (window.javaApp) {
+                                    window.javaApp.showPreview(
+                                        d.id, d.title, d.date, d.lieu, d.participants, d.imageUrl
+                                    );
+                                }
                             });
                             
                             marker.on('mouseout', function() {
                                 this.setIcon(createIcon(color, false));
                                 if (window.javaApp) window.javaApp.hidePreview();
+                            });
+                            
+                            marker.on('click', function() {
+                                this.openPopup();
                             });
                             
                             markers[id] = marker;
@@ -647,7 +713,7 @@ public class EventMapView {
                     function fitMapToEvents() {
                         if (allMarkers.length > 0) {
                             var group = L.featureGroup(allMarkers);
-                            map.fitBounds(group.getBounds());
+                            map.fitBounds(group.getBounds(), { padding: [50, 50] });
                         }
                     }
                     
@@ -788,44 +854,63 @@ public class EventMapView {
         GridPane grid = new GridPane();
         grid.setHgap(15);
         grid.setVgap(12);
+        grid.setAlignment(Pos.CENTER);
 
-        grid.add(new Label("📅 Date:"), 0, 0);
-        grid.add(new Label(event.getFormattedDate() != null ? event.getFormattedDate() : "Non définie"), 1, 0);
+        // Ligne 0: Titre (centré)
+        Label titleLabel = new Label(event.getTitre());
+        titleLabel.setFont(Font.font("System", FontWeight.BOLD, 20));
+        titleLabel.setTextFill(Color.web(adminDashboard.getTextColor()));
+        titleLabel.setWrapText(true);
+        titleLabel.setAlignment(Pos.CENTER);
+        grid.add(titleLabel, 0, 0, 2, 1);
+        GridPane.setHalignment(titleLabel, javafx.geometry.HPos.CENTER);
 
-        grid.add(new Label("📍 Lieu:"), 0, 1);
-        grid.add(new Label(event.getLieu() != null ? event.getLieu() : "Non défini"), 1, 1);
+        // Ligne 1: Date
+        grid.add(new Label("📅 Date:"), 0, 1);
+        grid.add(new Label(event.getFormattedDate() != null ? event.getFormattedDate() : "Non définie"), 1, 1);
 
+        // Ligne 2: Lieu
+        grid.add(new Label("📍 Lieu:"), 0, 2);
+        grid.add(new Label(event.getLieu() != null ? event.getLieu() : "Non défini"), 1, 2);
+
+        // Ligne 3: Coordonnées
         if (event.hasCoordinates()) {
-            grid.add(new Label("🌍 Coordonnées:"), 0, 2);
-            grid.add(new Label(String.format("%.4f, %.4f", event.getLatitude(), event.getLongitude())), 1, 2);
+            grid.add(new Label("🌍 Position:"), 0, 3);
+            grid.add(new Label(String.format("%.4f, %.4f", event.getLatitude(), event.getLongitude())), 1, 3);
         }
 
-        grid.add(new Label("👥 Participants:"), 0, 3);
-        grid.add(new Label(event.getParticipantsCount() + " inscrits"), 1, 3);
+        // Ligne 4: Participants
+        grid.add(new Label("👥 Participants:"), 0, 4);
+        grid.add(new Label(event.getParticipantsCount() + " inscrits"), 1, 4);
 
+        // Ligne 5: Capacité
         if (event.getCapacite_max() != null) {
-            grid.add(new Label("📊 Capacité:"), 0, 4);
-            grid.add(new Label(event.getCapacite_max() + " places"), 1, 4);
+            grid.add(new Label("📊 Capacité:"), 0, 5);
+            grid.add(new Label(event.getCapacite_max() + " places"), 1, 5);
         }
 
+        // Ligne 6: Organisateur
         User org = userService.getUserById(event.getId_organisateur());
-        grid.add(new Label("👤 Organisateur:"), 0, 5);
-        grid.add(new Label(org != null ? org.getNomComplet() : "Inconnu"), 1, 5);
+        grid.add(new Label("👤 Organisateur:"), 0, 6);
+        grid.add(new Label(org != null ? org.getNomComplet() : "Inconnu"), 1, 6);
 
-        grid.add(new Label("📌 Statut:"), 0, 6);
+        // Ligne 7: Statut
+        grid.add(new Label("📌 Statut:"), 0, 7);
         String statut = event.getStatut() != null ? event.getStatut() : "Inconnu";
         Label statutLabel = new Label(statut);
         String statutColor = statut.equals("À venir") ? "#f39c12" :
                 statut.equals("En cours") ? "#9b59b6" : "#6c757d";
         statutLabel.setStyle("-fx-background-color: " + statutColor +
                 "; -fx-text-fill: white; -fx-padding: 4 12; -fx-background-radius: 15;");
-        grid.add(statutLabel, 1, 6);
+        grid.add(statutLabel, 1, 7);
 
+        // Ligne 8: Description
         if (event.getDescription() != null && !event.getDescription().isEmpty()) {
-            grid.add(new Label("📝 Description:"), 0, 7);
+            grid.add(new Label("📝 Description:"), 0, 8);
             Label descLabel = new Label(event.getDescription());
             descLabel.setWrapText(true);
-            grid.add(descLabel, 1, 7);
+            descLabel.setMaxWidth(300);
+            grid.add(descLabel, 1, 8);
         }
 
         ColumnConstraints col1 = new ColumnConstraints();

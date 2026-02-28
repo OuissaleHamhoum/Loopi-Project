@@ -88,10 +88,9 @@ public class RecommendationView {
 
         typeSelector = new ComboBox<>();
         typeSelector.getItems().addAll(
-                "🎯 Pour vous (Basé sur vos favoris)",
-                "🔥 Tendance (Nouveautés notées de la semaine)",
-                "⭐ Les mieux notés (Tous les temps)",
-                "🆕 Nouveautés (Produits de cette semaine)"
+                "🎯 Pour vous ",
+                "🔥 Tendance ",
+                "⭐ Les mieux notés "
         );
         typeSelector.setValue("🎯 Pour vous (Basé sur vos favoris)");
         typeSelector.setStyle("-fx-background-radius: 8; -fx-padding: 8 15; -fx-font-size: 14px;");
@@ -107,9 +106,6 @@ public class RecommendationView {
             } else if (selected.contains("mieux notés")) {
                 loadRecommendations("mieuxnotes");
                 descriptionLabel.setText("Les produits avec les meilleures notes de tous les temps");
-            } else if (selected.contains("Nouveautés")) {
-                loadRecommendations("nouveautes");
-                descriptionLabel.setText("Tous les produits ajoutés cette semaine ✨");
             }
         });
 
@@ -124,8 +120,6 @@ public class RecommendationView {
                 loadRecommendations("tendance");
             } else if (selected.contains("mieux notés")) {
                 loadRecommendations("mieuxnotes");
-            } else if (selected.contains("Nouveautés")) {
-                loadRecommendations("nouveautes");
             }
         });
 
@@ -169,8 +163,6 @@ public class RecommendationView {
                 recommendations = recommendationService.getRecommandationsTendance(limit);
             } else if ("mieuxnotes".equals(type)) {
                 recommendations = recommendationService.getRecommandationsMieuxNotes(limit);
-            } else if ("nouveautes".equals(type)) {
-                recommendations = recommendationService.getRecommandationsNouveautes(limit);
             } else {
                 recommendations = recommendationService.getRecommandationsPopulaires(limit);
             }
@@ -238,9 +230,6 @@ public class RecommendationView {
         } else if ("mieuxnotes".equals(type)) {
             badgeText = "⭐ Mieux noté";
             badgeColor = "#f59e0b";
-        } else if ("nouveautes".equals(type)) {
-            badgeText = "🆕 Nouveauté";
-            badgeColor = "#10b981";
         }
 
         if (!badgeText.isEmpty()) {
@@ -320,10 +309,6 @@ public class RecommendationView {
             icon = "⭐";
             message = "Aucun produit mieux noté";
             suggestion = "Soyez le premier à noter des produits !";
-        } else if ("nouveautes".equals(type)) {
-            icon = "🆕";
-            message = "Aucune nouveauté cette semaine";
-            suggestion = "Revenez la semaine prochaine pour découvrir les nouveaux produits";
         }
 
         Label iconLabel = new Label(icon);

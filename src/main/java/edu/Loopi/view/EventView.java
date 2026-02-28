@@ -2,10 +2,12 @@ package edu.Loopi.view;
 
 import edu.Loopi.entities.Event;
 import edu.Loopi.entities.User;
+import edu.Loopi.services.AIImageGenerationService;
 import edu.Loopi.services.EventService;
+import edu.Loopi.services.NotificationService;
 import javafx.animation.ScaleTransition;
 import javafx.application.Platform;
-import javafx.concurrent.Task;
+import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -24,8 +26,6 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 
 import java.io.*;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.file.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -34,112 +34,77 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-
 public class EventView {
     private User currentUser;
     private VBox mainLayout;
     private FlowPane cardsContainer;
     private EventService eventService = new EventService();
+    private NotificationService notificationService = new NotificationService();
     private List<Event> allEvents;
     private String selectedImagePath = "";
 
-    // 📁 DOSSIER DANS resources/
+    // Constantes de couleurs
+    private static final String PRIMARY_COLOR = "#4361ee";
+    private static final String SUCCESS_COLOR = "#2ecc71";
+    private static final String DANGER_COLOR = "#e74c3c";
+    private static final String WARNING_COLOR = "#f39c12";
+    private static final String DARK_COLOR = "#2c3e50";
+    private static final String LIGHT_GRAY = "#f8f9fa";
+    private static final String BORDER_COLOR = "#e9ecef";
+    private static final String AI_COLOR = "#9b59b6";
+
+    // Chemins des dossiers d'upload
     private static final String PROJECT_ROOT = System.getProperty("user.dir");
-    private static final String IMAGE_STORAGE_DIR = "src" + File.separator + "main" + File.separator +
-            "resources" + File.separator + "uploads" + File.separator +
-            "events" + File.separator;
-    private static final String FULL_IMAGE_PATH = PROJECT_ROOT + File.separator + IMAGE_STORAGE_DIR;
+    private static final String RESOURCES_DIR = "src" + File.separator + "main" + File.separator +
+            "resources" + File.separator;
+    private static final String UPLOADS_DIR = RESOURCES_DIR + "uploads" + File.separator;
+    private static final String EVENTS_DIR = UPLOADS_DIR + "events" + File.separator;
+    private static final String AI_DIR = UPLOADS_DIR + "ai_generated" + File.separator;
 
-    // 📁 Chemin pour la BDD
-    private static final String DB_IMAGE_PATH = "uploads/events/";
+    private static final String FULL_EVENTS_PATH = PROJECT_ROOT + File.separator + EVENTS_DIR;
+    private static final String FULL_AI_PATH = PROJECT_ROOT + File.separator + AI_DIR;
 
-    // 🔑 API Key management - SECURE VERSION
-    private static String getOpenAIApiKey() {
-        // Try environment variable first
-        String apiKey = System.getenv("OPENAI_API_KEY");
-        if (apiKey != null && !apiKey.isEmpty()) {
-            return apiKey;
-        }
-
-        // Try system property
-        apiKey = System.getProperty("openai.api.key");
-        if (apiKey != null && !apiKey.isEmpty()) {
-            return apiKey;
-        }
-
-        // Try config file
-        try {
-            Properties props = new Properties();
-            File configFile = new File(System.getProperty("user.home"), ".loopi/config.properties");
-            if (configFile.exists()) {
-                try (FileInputStream fis = new FileInputStream(configFile)) {
-                    props.load(fis);
-                    apiKey = props.getProperty("openai.api.key");
-                    if (apiKey != null && !apiKey.isEmpty()) {
-                        return apiKey;
-                    }
-                }
-            }
-
-            // Try project config file
-            configFile = new File("config.properties");
-            if (configFile.exists()) {
-                try (FileInputStream fis = new FileInputStream(configFile)) {
-                    props.load(fis);
-                    apiKey = props.getProperty("openai.api.key");
-                    if (apiKey != null && !apiKey.isEmpty()) {
-                        return apiKey;
-                    }
-                }
-            }
-        } catch (IOException e) {
-            System.err.println("⚠️ Could not load config file: " + e.getMessage());
-        }
-
-        return "";
-    }
-
-    // 📚 Bibliothèque d'images gratuites (toutes fonctionnelles)
-    private static final String[] FREE_IMAGES = {
-            "https://images.pexels.com/photos/976866/pexels-photo-976866.jpeg?auto=compress&cs=tinysrgb&w=600",
-            "https://images.pexels.com/photos/1190298/pexels-photo-1190298.jpeg?auto=compress&cs=tinysrgb&w=600",
-            "https://images.pexels.com/photos/1482473/pexels-photo-1482473.jpeg?auto=compress&cs=tinysrgb&w=600",
-            "https://images.pexels.com/photos/2608517/pexels-photo-2608517.jpeg?auto=compress&cs=tinysrgb&w=600",
-            "https://images.pexels.com/photos/2774556/pexels-photo-2774556.jpeg?auto=compress&cs=tinysrgb&w=600",
-            "https://images.pexels.com/photos/3178786/pexels-photo-3178786.jpeg?auto=compress&cs=tinysrgb&w=600",
-            "https://images.pexels.com/photos/3184418/pexels-photo-3184418.jpeg?auto=compress&cs=tinysrgb&w=600",
-            "https://images.pexels.com/photos/3194523/pexels-photo-3194523.jpeg?auto=compress&cs=tinysrgb&w=600"
-    };
+    private static final String DB_EVENTS_PATH = "uploads/events/";
+    private static final String DB_AI_PATH = "uploads/ai_generated/";
 
     // Composants pour les filtres
     private TextField searchField = new TextField();
     private ComboBox<String> statusFilter = new ComboBox<>();
-    private HBox statsBar = new HBox(20);
+    private ComboBox<String> validationFilter = new ComboBox<>();
+    private ComboBox<String> sortCombo = new ComboBox<>();
+    private HBox statsBar = new HBox(15);
+    private Label messageInfoLabel;
 
     public EventView(User user) {
         this.currentUser = user;
-        this.mainLayout = new VBox(25);
-
-        createUploadDirectory();
+        this.mainLayout = new VBox(20);
+        createUploadDirectories();
         createView();
         loadData();
     }
 
-    // ============ GESTION DU DOSSIER D'IMAGES ============
+    private void createUploadDirectories() {
+        try {
+            File eventsDir = new File(FULL_EVENTS_PATH);
+            File aiDir = new File(FULL_AI_PATH);
 
-    private void createUploadDirectory() {
-        File directory = new File(FULL_IMAGE_PATH);
-        if (!directory.exists()) {
-            directory.mkdirs();
-            System.out.println("✅ Dossier créé: " + FULL_IMAGE_PATH);
+            if (!eventsDir.exists()) {
+                boolean created = eventsDir.mkdirs();
+                System.out.println("📁 Dossier events " + (created ? "créé" : "existe déjà") + ": " + FULL_EVENTS_PATH);
+            }
+
+            if (!aiDir.exists()) {
+                boolean created = aiDir.mkdirs();
+                System.out.println("📁 Dossier AI " + (created ? "créé" : "existe déjà") + ": " + FULL_AI_PATH);
+            }
+        } catch (Exception e) {
+            System.err.println("❌ Erreur création dossiers: " + e.getMessage());
         }
     }
 
     private String copyImageToStorage(File sourceFile) {
         try {
-            File directory = new File(FULL_IMAGE_PATH);
+            File directory = new File(FULL_EVENTS_PATH);
             if (!directory.exists()) directory.mkdirs();
 
             String extension = "";
@@ -148,11 +113,16 @@ public class EventView {
             extension = (dotIndex > 0) ? fileName.substring(dotIndex) : ".jpg";
 
             String uniqueFileName = "event_" + UUID.randomUUID().toString() + extension;
-            String fullPath = FULL_IMAGE_PATH + uniqueFileName;
+            String fullPath = FULL_EVENTS_PATH + uniqueFileName;
 
             Files.copy(sourceFile.toPath(), Paths.get(fullPath), StandardCopyOption.REPLACE_EXISTING);
 
-            return DB_IMAGE_PATH + uniqueFileName;
+            File savedFile = new File(fullPath);
+            if (savedFile.exists()) {
+                System.out.println("✅ Image copiée: " + fullPath);
+                return DB_EVENTS_PATH + uniqueFileName;
+            }
+            return null;
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -161,274 +131,197 @@ public class EventView {
     }
 
     private Image loadImageFromStorage(String imagePath) {
-        if (imagePath == null || imagePath.isEmpty()) return null;
+        if (imagePath == null || imagePath.isEmpty()) {
+            return null;
+        }
 
         try {
             String fileName = imagePath.substring(imagePath.lastIndexOf('/') + 1);
-            File imgFile = new File(FULL_IMAGE_PATH + fileName);
-            if (imgFile.exists()) {
-                return new Image(imgFile.toURI().toString());
+
+            String[] possiblePaths = {
+                    FULL_EVENTS_PATH + fileName,
+                    FULL_AI_PATH + fileName,
+                    PROJECT_ROOT + File.separator + "src" + File.separator + "main" + File.separator +
+                            "resources" + File.separator + imagePath.replace('/', File.separatorChar)
+            };
+
+            for (String path : possiblePaths) {
+                File imgFile = new File(path);
+                if (imgFile.exists()) {
+                    Image image = new Image(imgFile.toURI().toString(), true);
+                    return image;
+                }
             }
         } catch (Exception e) {
-            System.err.println("❌ Erreur chargement image: " + e.getMessage());
+            System.err.println("❌ Exception lors du chargement: " + e.getMessage());
         }
         return null;
     }
 
-    // ============ GÉNÉRATION D'IMAGE AVEC FALLBACK - SECURE VERSION ============
-
-    private String generateImageWithAI(String prompt) {
-        String apiKey = getOpenAIApiKey();
-
-        // Vérifier si la clé API est configurée
-        if (apiKey == null || apiKey.isEmpty()) {
-            System.out.println("ℹ️ Pas de clé API valide, utilisation d'images gratuites");
-            return downloadFreeImage(prompt);
-        }
-
-        HttpURLConnection connection = null;
-        try {
-            System.out.println("🎨 Tentative de génération avec DALL-E 3...");
-
-            URL url = new URL("https://api.openai.com/v1/images/generations");
-            connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("POST");
-            connection.setRequestProperty("Content-Type", "application/json");
-            connection.setRequestProperty("Authorization", "Bearer " + apiKey);
-            connection.setDoOutput(true);
-            connection.setConnectTimeout(30000);
-            connection.setReadTimeout(60000);
-
-            String enhancedPrompt = "Create a beautiful, colorful, professional event poster for: " + prompt +
-                    ". Style: digital art, vibrant colors, eco-friendly, environmental, " +
-                    "high quality, 4k, detailed, no text, no words, just visual.";
-
-            JsonObject requestBody = new JsonObject();
-            requestBody.addProperty("model", "dall-e-3");
-            requestBody.addProperty("prompt", enhancedPrompt);
-            requestBody.addProperty("n", 1);
-            requestBody.addProperty("size", "1024x1024");
-            requestBody.addProperty("quality", "standard");
-            requestBody.addProperty("style", "vivid");
-
-            try (OutputStream os = connection.getOutputStream()) {
-                byte[] input = requestBody.toString().getBytes("utf-8");
-                os.write(input, 0, input.length);
-            }
-
-            int responseCode = connection.getResponseCode();
-            System.out.println("📡 Code réponse API: " + responseCode);
-
-            if (responseCode == 200) {
-                try (BufferedReader br = new BufferedReader(
-                        new InputStreamReader(connection.getInputStream(), "utf-8"))) {
-                    StringBuilder response = new StringBuilder();
-                    String responseLine;
-                    while ((responseLine = br.readLine()) != null) {
-                        response.append(responseLine.trim());
-                    }
-
-                    JsonObject jsonResponse = JsonParser.parseString(response.toString()).getAsJsonObject();
-                    String imageUrl = jsonResponse.getAsJsonArray("data")
-                            .get(0).getAsJsonObject()
-                            .get("url").getAsString();
-
-                    System.out.println("✅ Image générée avec DALL-E 3, téléchargement...");
-                    return downloadImageFromUrl(imageUrl);
-                }
-            } else {
-                try (BufferedReader br = new BufferedReader(
-                        new InputStreamReader(connection.getErrorStream(), "utf-8"))) {
-                    StringBuilder response = new StringBuilder();
-                    String responseLine;
-                    while ((responseLine = br.readLine()) != null) {
-                        response.append(responseLine.trim());
-                    }
-                    String errorMsg = response.toString();
-                    System.err.println("❌ Erreur API: " + errorMsg);
-
-                    if (errorMsg.contains("billing_hard_limit_reached") ||
-                            errorMsg.contains("insufficient_quota") ||
-                            errorMsg.contains("rate_limit")) {
-                        System.out.println("ℹ️ Problème de billing ou quota, utilisation d'images gratuites");
-                        return downloadFreeImage(prompt);
-                    }
-                }
-                return downloadFreeImage(prompt);
-            }
-
-        } catch (Exception e) {
-            System.err.println("❌ Erreur génération IA: " + e.getMessage());
-            return downloadFreeImage(prompt);
-        } finally {
-            if (connection != null) {
-                connection.disconnect();
-            }
-        }
-    }
-
-    private String downloadFreeImage(String prompt) {
-        try {
-            System.out.println("🖼️ Téléchargement d'une image gratuite depuis Pexels...");
-
-            File directory = new File(FULL_IMAGE_PATH);
-            if (!directory.exists()) directory.mkdirs();
-
-            // Sélectionner une image basée sur le prompt
-            int hash = Math.abs(prompt.hashCode());
-            int imageIndex = hash % FREE_IMAGES.length;
-            String imageUrl = FREE_IMAGES[imageIndex];
-
-            String uniqueFileName = "event_free_" + UUID.randomUUID().toString() + ".jpg";
-            String fullPath = FULL_IMAGE_PATH + uniqueFileName;
-
-            // Télécharger l'image
-            URL url = new URL(imageUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-            connection.setConnectTimeout(30000);
-            connection.setReadTimeout(60000);
-            connection.setInstanceFollowRedirects(true);
-
-            try (InputStream in = connection.getInputStream()) {
-                Files.copy(in, Paths.get(fullPath), StandardCopyOption.REPLACE_EXISTING);
-            }
-
-            System.out.println("✅ Image gratuite téléchargée: " + fullPath);
-            return DB_IMAGE_PATH + uniqueFileName;
-
-        } catch (Exception e) {
-            System.err.println("❌ Erreur téléchargement image gratuite: " + e.getMessage());
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    private String downloadImageFromUrl(String imageUrl) {
-        try {
-            File directory = new File(FULL_IMAGE_PATH);
-            if (!directory.exists()) directory.mkdirs();
-
-            String uniqueFileName = "event_ai_" + UUID.randomUUID().toString() + ".png";
-            String fullPath = FULL_IMAGE_PATH + uniqueFileName;
-
-            URL url = new URL(imageUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
-            connection.setConnectTimeout(30000);
-            connection.setReadTimeout(60000);
-
-            try (InputStream in = connection.getInputStream()) {
-                Files.copy(in, Paths.get(fullPath), StandardCopyOption.REPLACE_EXISTING);
-            }
-
-            System.out.println("✅ Image téléchargée: " + fullPath);
-            return DB_IMAGE_PATH + uniqueFileName;
-
-        } catch (Exception e) {
-            System.err.println("❌ Erreur téléchargement: " + e.getMessage());
-            return null;
-        }
-    }
-
     private void createView() {
         mainLayout.getChildren().clear();
-        mainLayout.setPadding(new Insets(30));
-        mainLayout.setStyle("-fx-background-color: #f8f9fa;");
+        mainLayout.setPadding(new Insets(0));
+        mainLayout.setStyle("-fx-background-color: white; -fx-background-radius: 12;");
 
-        // HEADER
-        VBox heroSection = new VBox(8);
-        heroSection.setPadding(new Insets(0, 0, 15, 0));
+        VBox header = createHeader();
 
-        Label bigTitle = new Label("📅 Mes Événements");
-        bigTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 32));
-        bigTitle.setTextFill(Color.web("#1e293b"));
+        // Message d'information
+        messageInfoLabel = new Label("");
+        messageInfoLabel.setFont(Font.font("System", FontWeight.NORMAL, 13));
+        messageInfoLabel.setTextFill(Color.web("#059669"));
+        messageInfoLabel.setPadding(new Insets(5, 40, 0, 40));
+        messageInfoLabel.setVisible(false);
 
-        Label description = new Label("Gérez vos événements écologiques et suivez les inscriptions.");
-        description.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 14));
-        description.setTextFill(Color.web("#475569"));
-        description.setWrapText(true);
+        statsBar.setAlignment(Pos.CENTER_LEFT);
+        statsBar.setPadding(new Insets(20, 40, 10, 40));
+        statsBar.setStyle("-fx-background-color: " + LIGHT_GRAY + ";");
 
-        heroSection.getChildren().addAll(bigTitle, description);
+        HBox filterBar = createFilterBar();
 
-        // STATISTIQUES
-        statsBar.setAlignment(Pos.CENTER);
-        statsBar.setPadding(new Insets(15));
-        statsBar.setStyle("-fx-background-color: white; -fx-background-radius: 16; " +
-                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 10, 0, 0, 2);");
-
-        // BARRE DE FILTRES
-        HBox filterBar = new HBox(15);
-        filterBar.setAlignment(Pos.CENTER_LEFT);
-        filterBar.setPadding(new Insets(15));
-        filterBar.setStyle("-fx-background-color: white; -fx-background-radius: 16; " +
-                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 10, 0, 0, 2);");
-
-        Button refreshBtn = new Button("🔄");
-        refreshBtn.setStyle("-fx-background-color: #3b82f6; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-background-radius: 10; -fx-padding: 10 15;");
-        refreshBtn.setTooltip(new Tooltip("Actualiser"));
-        refreshBtn.setOnAction(e -> refreshData());
-
-        // FILTRE STATUT
-        Label statusLabel = new Label("Statut:");
-        statusLabel.setFont(Font.font("Arial", FontWeight.BOLD, 12));
-        statusLabel.setTextFill(Color.web("#1e293b"));
-
-        statusFilter.getItems().addAll("Tous", "À venir", "En cours", "Passés");
-        statusFilter.setValue("Tous");
-        statusFilter.setPrefWidth(120);
-        statusFilter.setStyle("-fx-background-radius: 10; -fx-border-radius: 10; -fx-padding: 8 12; " +
-                "-fx-background-color: white; -fx-border-color: #cbd5e1;");
-        statusFilter.setOnAction(e -> applyFilters());
-
-        // RECHERCHE
-        Label searchLabel = new Label("Recherche:");
-        searchLabel.setFont(Font.font("Arial", FontWeight.BOLD, 12));
-        searchLabel.setTextFill(Color.web("#1e293b"));
-
-        searchField.setPromptText("🔍 Titre ou lieu...");
-        searchField.setPrefWidth(200);
-        searchField.setStyle("-fx-background-radius: 10; -fx-border-radius: 10; -fx-padding: 8 12; " +
-                "-fx-background-color: white; -fx-border-color: #cbd5e1;");
-        searchField.textProperty().addListener((observable, oldValue, newValue) -> applyFilters());
-
-        Button addBtn = new Button("➕ Nouvel Événement");
-        addBtn.setStyle("-fx-background-color: #10b981; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-padding: 10 20; -fx-background-radius: 30; " +
-                "-fx-font-size: 13px; -fx-cursor: hand;");
-        addBtn.setOnAction(e -> openEventDialog(null));
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        filterBar.getChildren().addAll(
-                refreshBtn,
-                new Separator(javafx.geometry.Orientation.VERTICAL),
-                statusLabel, statusFilter,
-                new Separator(javafx.geometry.Orientation.VERTICAL),
-                searchLabel, searchField,
-                spacer,
-                addBtn
-        );
-
-        // ZONE DES CARTES
         cardsContainer = new FlowPane();
         cardsContainer.setHgap(20);
         cardsContainer.setVgap(20);
         cardsContainer.setAlignment(Pos.TOP_LEFT);
-        cardsContainer.setPadding(new Insets(15, 0, 15, 0));
+        cardsContainer.setPadding(new Insets(20, 40, 30, 40));
 
         ScrollPane scrollPane = new ScrollPane(cardsContainer);
         scrollPane.setFitToWidth(true);
-        scrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent; -fx-border-color: transparent;");
+        scrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent; -fx-border-color: null;");
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
 
-        mainLayout.getChildren().addAll(heroSection, statsBar, filterBar, scrollPane);
+        mainLayout.getChildren().addAll(header, messageInfoLabel, statsBar, filterBar, scrollPane);
+    }
+
+    private VBox createHeader() {
+        VBox header = new VBox(10);
+        header.setPadding(new Insets(25, 40, 15, 40));
+        header.setStyle("-fx-background: linear-gradient(to right, " + PRIMARY_COLOR + ", #3a0ca3);");
+
+        HBox topRow = new HBox();
+        topRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label title = new Label("📅 Mes Événements");
+        title.setFont(Font.font("System", FontWeight.BOLD, 28));
+        title.setTextFill(Color.WHITE);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button addBtn = new Button("➕ Nouvel événement");
+        addBtn.setStyle("-fx-background-color: white; -fx-text-fill: " + PRIMARY_COLOR + "; " +
+                "-fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 8 20; " +
+                "-fx-background-radius: 25; -fx-cursor: hand;");
+        addBtn.setOnAction(e -> openEventDialog(null));
+
+        topRow.getChildren().addAll(title, spacer, addBtn);
+
+        Label subtitle = new Label("Gérez vos événements écologiques et suivez leur validation");
+        subtitle.setFont(Font.font("System", 14));
+        subtitle.setTextFill(Color.rgb(255, 255, 255, 0.9));
+
+        header.getChildren().addAll(topRow, subtitle);
+        return header;
+    }
+
+    private HBox createFilterBar() {
+        HBox filterBar = new HBox(15);
+        filterBar.setAlignment(Pos.CENTER_LEFT);
+        filterBar.setPadding(new Insets(15, 40, 15, 40));
+        filterBar.setStyle("-fx-background-color: white; -fx-border-color: " + BORDER_COLOR + "; -fx-border-width: 1 0 0 0;");
+
+        Button refreshBtn = new Button("🔄");
+        refreshBtn.setStyle("-fx-background-color: " + PRIMARY_COLOR + "; -fx-text-fill: white; " +
+                "-fx-font-size: 16px; -fx-padding: 8 12; -fx-background-radius: 10; -fx-cursor: hand;");
+        refreshBtn.setTooltip(new Tooltip("Actualiser"));
+        refreshBtn.setOnAction(e -> refreshData());
+
+        HBox searchBox = new HBox(8);
+        searchBox.setAlignment(Pos.CENTER_LEFT);
+        searchBox.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 20; -fx-padding: 5 12;");
+        searchBox.setPrefWidth(250);
+
+        Label searchIcon = new Label("🔍");
+        searchIcon.setStyle("-fx-font-size: 14px;");
+
+        searchField.setPromptText("Rechercher...");
+        searchField.setStyle("-fx-background-color: transparent; -fx-pref-width: 200px; -fx-font-size: 13px;");
+        searchField.setOnKeyReleased(e -> applyFilters());
+
+        searchBox.getChildren().addAll(searchIcon, searchField);
+
+        Separator sep1 = new Separator(javafx.geometry.Orientation.VERTICAL);
+        sep1.setStyle("-fx-background-color: " + BORDER_COLOR + ";");
+
+        VBox statusBox = new VBox(2);
+        Label statusLabel = new Label("Statut");
+        statusLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #6c757d; -fx-font-weight: bold;");
+
+        statusFilter.getItems().addAll("Tous", "À venir", "En cours", "Passés");
+        statusFilter.setValue("Tous");
+        statusFilter.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 10; -fx-padding: 6 12; -fx-font-size: 12px;");
+        statusFilter.setPrefWidth(120);
+        statusFilter.setOnAction(e -> applyFilters());
+
+        statusBox.getChildren().addAll(statusLabel, statusFilter);
+
+        Separator sep2 = new Separator(javafx.geometry.Orientation.VERTICAL);
+        sep2.setStyle("-fx-background-color: " + BORDER_COLOR + ";");
+
+        VBox validationBox = new VBox(2);
+        Label validationLabel = new Label("Validation");
+        validationLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #6c757d; -fx-font-weight: bold;");
+
+        validationFilter.getItems().addAll("Tous", "En attente", "Approuvés", "Refusés");
+        validationFilter.setValue("Tous");
+        validationFilter.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 10; -fx-padding: 6 12; -fx-font-size: 12px;");
+        validationFilter.setPrefWidth(120);
+        validationFilter.setOnAction(e -> applyFilters());
+
+        validationBox.getChildren().addAll(validationLabel, validationFilter);
+
+        Separator sep3 = new Separator(javafx.geometry.Orientation.VERTICAL);
+        sep3.setStyle("-fx-background-color: " + BORDER_COLOR + ";");
+
+        VBox sortBox = new VBox(2);
+        Label sortLabel = new Label("Trier par");
+        sortLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #6c757d; -fx-font-weight: bold;");
+
+        sortCombo.getItems().addAll(
+                "📅 Plus récent",
+                "📅 Moins récent",
+                "👥 Plus de participants"
+        );
+        sortCombo.setValue("📅 Plus récent");
+        sortCombo.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 10; -fx-padding: 6 12; -fx-font-size: 12px;");
+        sortCombo.setPrefWidth(130);
+        sortCombo.setOnAction(e -> applyFilters());
+
+        sortBox.getChildren().addAll(sortLabel, sortCombo);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button resetBtn = new Button("✕ Réinitialiser");
+        resetBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: " + DANGER_COLOR + "; " +
+                "-fx-border-color: " + DANGER_COLOR + "; -fx-border-radius: 15; -fx-padding: 6 15; " +
+                "-fx-cursor: hand; -fx-font-weight: bold; -fx-font-size: 12px;");
+        resetBtn.setOnAction(e -> resetFilters());
+
+        filterBar.getChildren().addAll(refreshBtn, searchBox, sep1, statusBox, sep2, validationBox, sep3, sortBox, spacer, resetBtn);
+        return filterBar;
     }
 
     private void loadData() {
         allEvents = eventService.getEventsByOrganisateur(currentUser.getId());
+
+        // Message si aucun événement
+        if (allEvents.isEmpty()) {
+            messageInfoLabel.setText("🔔 Vous n'avez pas encore créé d'événement. Cliquez sur 'Nouvel événement' pour commencer !");
+            messageInfoLabel.setVisible(true);
+        } else {
+            messageInfoLabel.setVisible(false);
+        }
+
         updateStats();
         applyFilters();
     }
@@ -437,9 +330,19 @@ public class EventView {
         loadData();
     }
 
+    private void resetFilters() {
+        searchField.clear();
+        statusFilter.setValue("Tous");
+        validationFilter.setValue("Tous");
+        sortCombo.setValue("📅 Plus récent");
+        applyFilters();
+    }
+
     private void applyFilters() {
         String searchText = searchField.getText().toLowerCase().trim();
         String selectedStatus = statusFilter.getValue();
+        String selectedValidation = validationFilter.getValue();
+        String selectedSort = sortCombo.getValue();
 
         List<Event> filtered = allEvents.stream()
                 .filter(event -> {
@@ -457,7 +360,31 @@ public class EventView {
                     if (filterStatut.equals("passés") && eventStatut.equals("passé")) return true;
                     return false;
                 })
+                .filter(event -> {
+                    if (selectedValidation == null || "Tous".equals(selectedValidation)) return true;
+                    String eventValidation = event.getStatutValidation();
+                    String filterValidation = selectedValidation.toLowerCase();
+
+                    if (filterValidation.equals("en attente") && "en_attente".equals(eventValidation)) return true;
+                    if (filterValidation.equals("approuvés") && "approuve".equals(eventValidation)) return true;
+                    if (filterValidation.equals("refusés") && "refuse".equals(eventValidation)) return true;
+                    return false;
+                })
                 .collect(Collectors.toList());
+
+        if (selectedSort != null) {
+            switch (selectedSort) {
+                case "📅 Plus récent":
+                    filtered.sort((e1, e2) -> e2.getDate_evenement().compareTo(e1.getDate_evenement()));
+                    break;
+                case "📅 Moins récent":
+                    filtered.sort((e1, e2) -> e1.getDate_evenement().compareTo(e2.getDate_evenement()));
+                    break;
+                case "👥 Plus de participants":
+                    filtered.sort((e1, e2) -> Integer.compare(e2.getParticipantsCount(), e1.getParticipantsCount()));
+                    break;
+            }
+        }
 
         displayCards(filtered);
     }
@@ -469,31 +396,43 @@ public class EventView {
         int aVenir = (int) allEvents.stream().filter(e -> "à venir".equals(e.getStatut())).count();
         int enCours = (int) allEvents.stream().filter(e -> "en cours".equals(e.getStatut())).count();
         int passes = (int) allEvents.stream().filter(e -> "passé".equals(e.getStatut())).count();
+        int enAttente = (int) allEvents.stream().filter(e -> "en_attente".equals(e.getStatutValidation())).count();
+        int approuves = (int) allEvents.stream().filter(e -> "approuve".equals(e.getStatutValidation())).count();
+        int refuses = (int) allEvents.stream().filter(e -> "refuse".equals(e.getStatutValidation())).count();
         int totalParticipants = allEvents.stream().mapToInt(Event::getParticipantsCount).sum();
 
         statsBar.getChildren().addAll(
-                createStatCard("📊", String.valueOf(total), "#1e293b"),
-                createStatCard("⏳", String.valueOf(aVenir), "#3b82f6"),
-                createStatCard("🔄", String.valueOf(enCours), "#f59e0b"),
-                createStatCard("✅", String.valueOf(passes), "#64748b"),
-                createStatCard("👥", String.valueOf(totalParticipants), "#10b981")
+                createStatCard("📊", String.valueOf(total), "Total", PRIMARY_COLOR),
+                createStatCard("⏳", String.valueOf(aVenir), "À venir", WARNING_COLOR),
+                createStatCard("🔄", String.valueOf(enCours), "En cours", "#9b59b6"),
+                createStatCard("✅", String.valueOf(passes), "Passés", "#6c757d"),
+                createStatCard("⏰", String.valueOf(enAttente), "En attente", "#f39c12"),
+                createStatCard("✓", String.valueOf(approuves), "Approuvés", SUCCESS_COLOR),
+                createStatCard("❌", String.valueOf(refuses), "Refusés", DANGER_COLOR),
+                createStatCard("👥", String.valueOf(totalParticipants), "Participants", "#9b59b6")
         );
     }
 
-    private VBox createStatCard(String icon, String value, String color) {
-        VBox card = new VBox(2);
-        card.setAlignment(Pos.CENTER);
-        card.setPadding(new Insets(10, 15, 10, 15));
+    private VBox createStatCard(String icon, String value, String label, String color) {
+        VBox card = new VBox(3);
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setPadding(new Insets(8, 15, 8, 15));
         card.setStyle("-fx-background-color: white; -fx-background-radius: 12; " +
-                "-fx-border-color: " + color + "; -fx-border-width: 0 0 3 0;");
+                "-fx-border-color: " + color + "; -fx-border-width: 0 0 0 3;");
+        card.setPrefWidth(130);
 
         Label valLbl = new Label(value);
         valLbl.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: " + color + ";");
 
+        HBox iconBox = new HBox(5);
+        iconBox.setAlignment(Pos.CENTER_LEFT);
         Label iconLbl = new Label(icon);
-        iconLbl.setStyle("-fx-font-size: 16px;");
+        iconLbl.setStyle("-fx-font-size: 12px;");
+        Label labelLbl = new Label(label);
+        labelLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #6c757d;");
+        iconBox.getChildren().addAll(iconLbl, labelLbl);
 
-        card.getChildren().addAll(valLbl, iconLbl);
+        card.getChildren().addAll(valLbl, iconBox);
         return card;
     }
 
@@ -503,28 +442,28 @@ public class EventView {
         if (events.isEmpty()) {
             VBox emptyState = new VBox(20);
             emptyState.setAlignment(Pos.CENTER);
-            emptyState.setPadding(new Insets(40));
-            emptyState.setPrefWidth(600);
+            emptyState.setPadding(new Insets(60));
+            emptyState.setStyle("-fx-background-color: white; -fx-background-radius: 16; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 10, 0, 0, 2);");
+            emptyState.setMaxWidth(500);
 
             Label emptyIcon = new Label("📅");
-            emptyIcon.setFont(Font.font("Segoe UI", FontWeight.BOLD, 48));
+            emptyIcon.setFont(Font.font("System", FontWeight.BOLD, 48));
 
-            String message = "Aucun événement trouvé";
-            if (!searchField.getText().isEmpty() || !"Tous".equals(statusFilter.getValue())) {
-                message = "Aucun résultat pour les filtres";
-            }
+            String message = searchField.getText().isEmpty() && "Tous".equals(statusFilter.getValue()) ?
+                    "Vous n'avez pas encore créé d'événement" :
+                    "Aucun événement ne correspond à vos critères";
 
             Label emptyText = new Label(message);
-            emptyText.setFont(Font.font("Segoe UI", FontWeight.BOLD, 20));
-            emptyText.setTextFill(Color.web("#1e293b"));
+            emptyText.setFont(Font.font("System", FontWeight.BOLD, 18));
+            emptyText.setTextFill(Color.web(DARK_COLOR));
 
-            Label emptySubtext = new Label("Créez votre premier événement");
-            emptySubtext.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 14));
-            emptySubtext.setTextFill(Color.web("#64748b"));
+            Label emptySubtext = new Label("Créez votre premier événement en cliquant sur le bouton");
+            emptySubtext.setFont(Font.font("System", 14));
+            emptySubtext.setTextFill(Color.web("#6c757d"));
 
             Button createFirstBtn = new Button("➕ Créer un événement");
-            createFirstBtn.setStyle("-fx-background-color: #10b981; -fx-text-fill: white; " +
-                    "-fx-font-weight: bold; -fx-padding: 12 25; -fx-background-radius: 30;");
+            createFirstBtn.setStyle("-fx-background-color: " + PRIMARY_COLOR + "; -fx-text-fill: white; " +
+                    "-fx-font-weight: bold; -fx-padding: 12 25; -fx-background-radius: 30; -fx-cursor: hand;");
             createFirstBtn.setOnAction(e -> openEventDialog(null));
 
             emptyState.getChildren().addAll(emptyIcon, emptyText, emptySubtext, createFirstBtn);
@@ -538,35 +477,34 @@ public class EventView {
 
     private VBox createEventCard(Event event) {
         VBox card = new VBox(0);
-        card.setPrefSize(280, 380);
+        card.setPrefSize(280, 450);
         card.setStyle("-fx-background-color: white; -fx-background-radius: 16; " +
-                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 10, 0, 0, 5);");
+                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 10, 0, 0, 3); -fx-cursor: hand;");
 
         card.setOnMouseEntered(e -> {
             card.setStyle("-fx-background-color: white; -fx-background-radius: 16; " +
-                    "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.12), 20, 0, 0, 8);");
-            scaleNode(card, 1.02);
+                    "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.12), 15, 0, 0, 5); -fx-scale-x: 1.01; -fx-scale-y: 1.01;");
         });
         card.setOnMouseExited(e -> {
             card.setStyle("-fx-background-color: white; -fx-background-radius: 16; " +
-                    "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 10, 0, 0, 5);");
-            scaleNode(card, 1.0);
+                    "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 10, 0, 0, 3);");
         });
 
-        // IMAGE
         StackPane imgContainer = new StackPane();
+        imgContainer.setPrefSize(280, 140);
+        imgContainer.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 16 16 0 0;");
+
         ImageView imgView = new ImageView();
+        imgView.setFitWidth(280);
+        imgView.setFitHeight(140);
+        imgView.setPreserveRatio(false);
 
         Image image = loadImageFromStorage(event.getImage_evenement());
         if (image != null) {
             imgView.setImage(image);
         } else {
-            imgView.setImage(new Image("https://via.placeholder.com/280x140/e2e8f0/1e293b?text=LOOPI"));
+            imgView.setImage(new Image("https://via.placeholder.com/280x140/" + PRIMARY_COLOR.substring(1) + "/ffffff?text=ÉVÉNEMENT"));
         }
-
-        imgView.setFitWidth(280);
-        imgView.setFitHeight(140);
-        imgView.setPreserveRatio(false);
 
         Rectangle clip = new Rectangle(280, 140);
         clip.setArcWidth(16);
@@ -574,46 +512,62 @@ public class EventView {
         imgView.setClip(clip);
         imgContainer.getChildren().add(imgView);
 
-        // BADGE STATUT
+        // Badge statut événement
         String statut = event.getStatut();
-        Label statusBadge = new Label(statut.substring(0, 1).toUpperCase());
-        statusBadge.setFont(Font.font("Arial", FontWeight.BOLD, 11));
+        Label statusBadge = new Label(statut.substring(0, 1).toUpperCase() + statut.substring(1));
+        statusBadge.setFont(Font.font("System", FontWeight.BOLD, 11));
         statusBadge.setTextFill(Color.WHITE);
-        statusBadge.setPadding(new Insets(4, 10, 4, 10));
+        statusBadge.setPadding(new Insets(4, 12, 4, 12));
 
         String statusColor;
         switch (statut.toLowerCase()) {
-            case "à venir": statusColor = "#3b82f6"; break;
-            case "en cours": statusColor = "#f59e0b"; break;
-            case "passé": statusColor = "#64748b"; break;
-            default: statusColor = "#94a3b8";
+            case "à venir":
+                statusColor = WARNING_COLOR;
+                break;
+            case "en cours":
+                statusColor = "#9b59b6";
+                break;
+            case "passé":
+                statusColor = "#6c757d";
+                break;
+            default:
+                statusColor = "#6c757d";
         }
         statusBadge.setStyle("-fx-background-color: " + statusColor + "; -fx-background-radius: 20;");
         StackPane.setAlignment(statusBadge, Pos.TOP_RIGHT);
-        StackPane.setMargin(statusBadge, new Insets(10, 10, 0, 0));
+        StackPane.setMargin(statusBadge, new Insets(8, 8, 0, 0));
         imgContainer.getChildren().add(statusBadge);
 
-        // CONTENU
-        VBox content = new VBox(8);
-        content.setPadding(new Insets(15));
+        // Badge validation
+        Label validationBadge = new Label(event.getStatutValidationFr());
+        validationBadge.setFont(Font.font("System", FontWeight.BOLD, 11));
+        validationBadge.setTextFill(Color.WHITE);
+        validationBadge.setPadding(new Insets(4, 12, 4, 12));
+        validationBadge.setStyle("-fx-background-color: " + event.getStatutValidationColor() + "; -fx-background-radius: 20;");
+        StackPane.setAlignment(validationBadge, Pos.TOP_LEFT);
+        StackPane.setMargin(validationBadge, new Insets(8, 0, 0, 8));
+        imgContainer.getChildren().add(validationBadge);
 
-        HBox dateLieu = new HBox(10);
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(12, 15, 15, 15));
+
+        HBox dateLieu = new HBox(8);
         dateLieu.setAlignment(Pos.CENTER_LEFT);
 
         Label dateLabel = new Label("📅 " + event.getFormattedDate().substring(0, 10));
         dateLabel.setFont(Font.font(11));
-        dateLabel.setTextFill(Color.web("#64748b"));
+        dateLabel.setTextFill(Color.web("#6c757d"));
 
         Label lieuLabel = new Label("📍 " + (event.getLieu() != null && event.getLieu().length() > 15 ?
                 event.getLieu().substring(0, 12) + "..." : event.getLieu()));
         lieuLabel.setFont(Font.font(11));
-        lieuLabel.setTextFill(Color.web("#64748b"));
+        lieuLabel.setTextFill(Color.web("#6c757d"));
 
         dateLieu.getChildren().addAll(dateLabel, lieuLabel);
 
         Label titreLabel = new Label(event.getTitre());
-        titreLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
-        titreLabel.setTextFill(Color.web("#0f172a"));
+        titreLabel.setFont(Font.font("System", FontWeight.BOLD, 16));
+        titreLabel.setTextFill(Color.web(DARK_COLOR));
         titreLabel.setWrapText(true);
         titreLabel.setMaxHeight(40);
 
@@ -625,591 +579,96 @@ public class EventView {
         descLabel.setText(desc != null ? desc : "");
         descLabel.setWrapText(true);
         descLabel.setFont(Font.font(11));
-        descLabel.setTextFill(Color.web("#475569"));
-        descLabel.setMaxHeight(40);
+        descLabel.setTextFill(Color.web("#6c757d"));
+        descLabel.setMaxHeight(35);
 
-        HBox capacityBox = new HBox(15);
-        capacityBox.setAlignment(Pos.CENTER_LEFT);
-        capacityBox.setPadding(new Insets(5, 0, 5, 0));
+        HBox participantsBox = new HBox(15);
+        participantsBox.setAlignment(Pos.CENTER_LEFT);
+        participantsBox.setPadding(new Insets(5, 0, 5, 0));
 
-        VBox participantsBox = new VBox(2);
+        VBox countBox = new VBox(2);
         Label participantsCount = new Label(String.valueOf(event.getParticipantsCount()));
-        participantsCount.setFont(Font.font("Arial", FontWeight.BOLD, 16));
-        participantsCount.setTextFill(Color.web("#10b981"));
+        participantsCount.setFont(Font.font("System", FontWeight.BOLD, 16));
+        participantsCount.setTextFill(Color.web(PRIMARY_COLOR));
+
         Label participantsLabel = new Label("participants");
         participantsLabel.setFont(Font.font(10));
-        participantsLabel.setTextFill(Color.web("#64748b"));
-        participantsBox.getChildren().addAll(participantsCount, participantsLabel);
+        participantsLabel.setTextFill(Color.web("#6c757d"));
 
-        capacityBox.getChildren().add(participantsBox);
+        countBox.getChildren().addAll(participantsCount, participantsLabel);
+        participantsBox.getChildren().add(countBox);
 
-        HBox actions = new HBox(10);
+        HBox actions = new HBox(8);
         actions.setAlignment(Pos.CENTER_RIGHT);
         actions.setPadding(new Insets(5, 0, 0, 0));
 
-        Button btnEdit = new Button("✏️");
-        btnEdit.setStyle("-fx-background-color: #f59e0b; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-background-radius: 6; -fx-padding: 6 12;");
-        btnEdit.setTooltip(new Tooltip("Modifier"));
+        Button btnEdit = new Button("✏️ Modifier");
+        btnEdit.setStyle("-fx-background-color: " + WARNING_COLOR + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-background-radius: 6; -fx-padding: 6 12; -fx-font-size: 11px; -fx-cursor: hand;");
         btnEdit.setOnAction(e -> openEventDialog(event));
 
-        Button btnDelete = new Button("🗑️");
-        btnDelete.setStyle("-fx-background-color: #ef4444; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-background-radius: 6; -fx-padding: 6 12;");
-        btnDelete.setTooltip(new Tooltip("Supprimer"));
-        btnDelete.setOnAction(e -> deleteEvent(event));
-
         Button btnParticipants = new Button("👥 " + event.getParticipantsCount());
-        btnParticipants.setStyle("-fx-background-color: #3b82f6; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-background-radius: 6; -fx-padding: 6 12;");
-        btnParticipants.setTooltip(new Tooltip("Voir les participants"));
+        btnParticipants.setStyle("-fx-background-color: " + PRIMARY_COLOR + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-background-radius: 6; -fx-padding: 6 12; -fx-font-size: 11px; -fx-cursor: hand;");
         btnParticipants.setOnAction(e -> showParticipantsDialog(event));
+
+        Button btnDelete = new Button("🗑️");
+        btnDelete.setStyle("-fx-background-color: " + DANGER_COLOR + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-background-radius: 6; -fx-padding: 6 12; -fx-font-size: 11px; -fx-cursor: hand;");
+        btnDelete.setOnAction(e -> deleteEvent(event));
 
         actions.getChildren().addAll(btnEdit, btnParticipants, btnDelete);
 
-        content.getChildren().addAll(dateLieu, titreLabel, descLabel, capacityBox, actions);
+        content.getChildren().addAll(dateLieu, titreLabel, descLabel, participantsBox, actions);
         card.getChildren().addAll(imgContainer, content);
 
         return card;
     }
 
-    // ============ DIALOGUE DE CRÉATION D'ÉVÉNEMENT ============
-
-    private void openEventDialog(Event existingEvent) {
-        Stage dialog = new Stage();
-        dialog.initModality(Modality.APPLICATION_MODAL);
-        dialog.setTitle(existingEvent == null ? "🎯 Créer un événement" : "✏️ Modifier l'événement");
-        dialog.setResizable(false);
-        dialog.setWidth(700);
-        dialog.setHeight(750);
-
-        BorderPane root = new BorderPane();
-        root.setStyle("-fx-background-color: #f8fafc;");
-
-        // --- HEADER ---
-        HBox header = new HBox(15);
-        header.setPadding(new Insets(15, 20, 15, 20));
-        header.setStyle("-fx-background-color: #0f172a;");
-        header.setAlignment(Pos.CENTER_LEFT);
-
-        Label headerIcon = new Label(existingEvent == null ? "🎯" : "✏️");
-        headerIcon.setFont(Font.font("Segoe UI", 28));
-        headerIcon.setTextFill(Color.WHITE);
-
-        VBox headerText = new VBox(3);
-        Label headerTitle = new Label(existingEvent == null ? "Créer un événement" : "Modifier");
-        headerTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
-        headerTitle.setTextFill(Color.WHITE);
-
-        Label headerSubtitle = new Label(existingEvent == null
-                ? "Remplissez les informations ci-dessous"
-                : "Modifiez les informations");
-        headerSubtitle.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 12));
-        headerSubtitle.setTextFill(Color.web("#cbd5e1"));
-
-        headerText.getChildren().addAll(headerTitle, headerSubtitle);
-        header.getChildren().addAll(headerIcon, headerText);
-
-        // --- FORMULAIRE ---
-        VBox form = new VBox(15);
-        form.setPadding(new Insets(20));
-        form.setStyle("-fx-background-color: white;");
-
-        // TITRE
-        VBox titleBox = new VBox(3);
-        Label titleLabel = new Label("📝 Titre *");
-        titleLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
-
-        TextField titreField = new TextField(existingEvent != null ? existingEvent.getTitre() : "");
-        titreField.setPromptText("Ex: Nettoyage de la plage");
-        titreField.setStyle("-fx-background-radius: 8; -fx-border-radius: 8; -fx-padding: 10; " +
-                "-fx-border-color: #cbd5e1; -fx-border-width: 1;");
-
-        Label titreError = new Label();
-        titreError.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 11));
-        titreError.setTextFill(Color.web("#ef4444"));
-        titreError.setVisible(false);
-
-        titleBox.getChildren().addAll(titleLabel, titreField, titreError);
-
-        // DESCRIPTION
-        VBox descBox = new VBox(3);
-        Label descLabel = new Label("📄 Description *");
-        descLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
-
-        TextArea descArea = new TextArea(existingEvent != null ? existingEvent.getDescription() : "");
-        descArea.setPromptText("Décrivez votre événement...");
-        descArea.setPrefRowCount(3);
-        descArea.setWrapText(true);
-        descArea.setStyle("-fx-background-radius: 8; -fx-border-radius: 8; -fx-padding: 10; " +
-                "-fx-border-color: #cbd5e1; -fx-border-width: 1;");
-
-        Label descError = new Label();
-        descError.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 11));
-        descError.setTextFill(Color.web("#ef4444"));
-        descError.setVisible(false);
-
-        descBox.getChildren().addAll(descLabel, descArea, descError);
-
-        // DATE ET HEURE
-        VBox dateBox = new VBox(3);
-        Label dateLabel = new Label("📅 Date & Heure *");
-        dateLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
-
-        HBox dateTimeBox = new HBox(10);
-        dateTimeBox.setAlignment(Pos.CENTER_LEFT);
-
-        DatePicker datePicker = new DatePicker();
-        datePicker.setPrefWidth(180);
-        datePicker.setStyle("-fx-background-radius: 8; -fx-border-radius: 8; -fx-padding: 8; " +
-                "-fx-border-color: #cbd5e1; -fx-border-width: 1;");
-
-        Spinner<Integer> hourSpinner = new Spinner<>(0, 23, 9);
-        hourSpinner.setPrefWidth(70);
-        hourSpinner.setStyle("-fx-background-radius: 8; -fx-border-radius: 8; -fx-padding: 6; " +
-                "-fx-border-color: #cbd5e1; -fx-border-width: 1;");
-
-        Label hourLabel = new Label("h");
-        hourLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
-
-        Spinner<Integer> minuteSpinner = new Spinner<>(0, 59, 0);
-        minuteSpinner.setPrefWidth(70);
-        minuteSpinner.setStyle("-fx-background-radius: 8; -fx-border-radius: 8; -fx-padding: 6; " +
-                "-fx-border-color: #cbd5e1; -fx-border-width: 1;");
-
-        if (existingEvent != null && existingEvent.getDate_evenement() != null) {
-            datePicker.setValue(existingEvent.getDate_evenement().toLocalDate());
-            hourSpinner.getValueFactory().setValue(existingEvent.getDate_evenement().getHour());
-            minuteSpinner.getValueFactory().setValue(existingEvent.getDate_evenement().getMinute());
-        } else {
-            datePicker.setValue(LocalDate.now().plusDays(7));
-        }
-
-        dateTimeBox.getChildren().addAll(datePicker, hourSpinner, hourLabel, minuteSpinner);
-
-        Label dateError = new Label();
-        dateError.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 11));
-        dateError.setTextFill(Color.web("#ef4444"));
-        dateError.setVisible(false);
-
-        dateBox.getChildren().addAll(dateLabel, dateTimeBox, dateError);
-
-        // LIEU
-        VBox lieuBox = new VBox(3);
-        Label lieuLabel = new Label("📍 Lieu *");
-        lieuLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
-
-        TextField lieuField = new TextField(existingEvent != null ? existingEvent.getLieu() : "");
-        lieuField.setPromptText("Ex: Plage de Sousse");
-        lieuField.setStyle("-fx-background-radius: 8; -fx-border-radius: 8; -fx-padding: 10; " +
-                "-fx-border-color: #cbd5e1; -fx-border-width: 1;");
-
-        Label lieuError = new Label();
-        lieuError.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 11));
-        lieuError.setTextFill(Color.web("#ef4444"));
-        lieuError.setVisible(false);
-
-        lieuBox.getChildren().addAll(lieuLabel, lieuField, lieuError);
-
-        // CAPACITÉ
-        VBox capaciteBox = new VBox(3);
-        Label capaciteLabel = new Label("👥 Capacité max");
-        capaciteLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
-
-        HBox capaciteControl = new HBox(10);
-        capaciteControl.setAlignment(Pos.CENTER_LEFT);
-
-        Spinner<Integer> capaciteSpinner = new Spinner<>(1, 1000, 50);
-        capaciteSpinner.setEditable(true);
-        capaciteSpinner.setPrefWidth(100);
-        capaciteSpinner.setStyle("-fx-background-radius: 8; -fx-border-radius: 8; -fx-padding: 6; " +
-                "-fx-border-color: #cbd5e1; -fx-border-width: 1;");
-
-        Label capaciteHelp = new Label("(optionnel)");
-        capaciteHelp.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 11));
-        capaciteHelp.setTextFill(Color.web("#64748b"));
-
-        if (existingEvent != null && existingEvent.getCapacite_max() != null) {
-            capaciteSpinner.getValueFactory().setValue(existingEvent.getCapacite_max());
-        }
-
-        capaciteControl.getChildren().addAll(capaciteSpinner, capaciteHelp);
-        capaciteBox.getChildren().addAll(capaciteLabel, capaciteControl);
-
-        // --- SECTION IMAGE ---
-        VBox imageSection = new VBox(10);
-        imageSection.setPadding(new Insets(15));
-        imageSection.setStyle("-fx-background-color: #f8fafc; -fx-background-radius: 12; " +
-                "-fx-border-color: #e2e8f0; -fx-border-radius: 12;");
-
-        Label imageTitle = new Label("🖼️ Image");
-        imageTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 13));
-
-        // Aperçu
-        ImageView previewImageView = new ImageView();
-        previewImageView.setFitWidth(200);
-        previewImageView.setFitHeight(120);
-        previewImageView.setPreserveRatio(true);
-
-        Rectangle previewClip = new Rectangle(200, 120);
-        previewClip.setArcWidth(12);
-        previewClip.setArcHeight(12);
-        previewImageView.setClip(previewClip);
-
-        selectedImagePath = "";
-        previewImageView.setImage(new Image("https://via.placeholder.com/200x120/e2e8f0/1e293b?text=Image"));
-
-        if (existingEvent != null && existingEvent.getImage_evenement() != null && !existingEvent.getImage_evenement().isEmpty()) {
-            Image existingImage = loadImageFromStorage(existingEvent.getImage_evenement());
-            if (existingImage != null) {
-                previewImageView.setImage(existingImage);
-                selectedImagePath = existingEvent.getImage_evenement();
-            }
-        }
-
-        VBox previewBox = new VBox(5, previewImageView);
-        previewBox.setAlignment(Pos.CENTER);
-
-        // Boutons
-        HBox imageButtons = new HBox(10);
-        imageButtons.setAlignment(Pos.CENTER);
-
-        Button browseBtn = new Button("📁 Choisir");
-        browseBtn.setStyle("-fx-background-color: #3b82f6; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-padding: 8 15; -fx-background-radius: 6; " +
-                "-fx-font-size: 12px;");
-
-        Button generateAIBtn = new Button("🎨 IA");
-        generateAIBtn.setStyle("-fx-background-color: #8b5cf6; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-padding: 8 15; -fx-background-radius: 6; " +
-                "-fx-font-size: 12px;");
-        generateAIBtn.setTooltip(new Tooltip("Générer une image avec IA (si clé API configurée)"));
-
-        Button clearImageBtn = new Button("🗑️");
-        clearImageBtn.setStyle("-fx-background-color: #e2e8f0; -fx-text-fill: #1e293b; " +
-                "-fx-font-weight: bold; -fx-padding: 8 15; -fx-background-radius: 6;");
-        clearImageBtn.setVisible(selectedImagePath != null && !selectedImagePath.isEmpty());
-
-        ProgressIndicator aiProgress = new ProgressIndicator();
-        aiProgress.setPrefSize(25, 25);
-        aiProgress.setVisible(false);
-
-        imageButtons.getChildren().addAll(browseBtn, generateAIBtn, clearImageBtn, aiProgress);
-
-        // Info sur l'API Key
-        Label apiInfoLabel = new Label();
-        apiInfoLabel.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 10));
-        apiInfoLabel.setTextFill(Color.web("#64748b"));
-
-        String apiKey = getOpenAIApiKey();
-        if (apiKey.isEmpty()) {
-            apiInfoLabel.setText("ℹ️ Mode hors ligne: utilisation d'images gratuites uniquement");
-            generateAIBtn.setTooltip(new Tooltip("Mode hors ligne: utilisation d'images gratuites"));
-        } else {
-            apiInfoLabel.setText("✅ Mode IA: génération d'images disponible");
-        }
-
-        imageSection.getChildren().addAll(imageTitle, previewBox, imageButtons, apiInfoLabel);
-
-        // Assemblage
-        form.getChildren().addAll(titleBox, descBox, dateBox, lieuBox, capaciteBox, imageSection);
-
-        ScrollPane scrollPane = new ScrollPane(form);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setStyle("-fx-background-color: transparent; -fx-border-color: transparent;");
-        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        scrollPane.setPrefViewportHeight(500);
-
-        // --- BOUTONS ---
-        HBox buttonBox = new HBox(15);
-        buttonBox.setPadding(new Insets(15, 20, 20, 20));
-        buttonBox.setAlignment(Pos.CENTER_RIGHT);
-        buttonBox.setStyle("-fx-background-color: white; -fx-border-color: #e2e8f0; -fx-border-width: 1 0 0 0;");
-
-        Button cancelBtn = new Button("Annuler");
-        cancelBtn.setStyle("-fx-background-color: #e2e8f0; -fx-text-fill: #1e293b; " +
-                "-fx-font-weight: bold; -fx-padding: 10 25; -fx-background-radius: 8;");
-        cancelBtn.setOnAction(e -> {
-            selectedImagePath = "";
-            dialog.close();
-        });
-
-        Button saveBtn = new Button(existingEvent == null ? "Créer" : "Enregistrer");
-        saveBtn.setStyle("-fx-background-color: #10b981; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-padding: 10 25; -fx-background-radius: 8;");
-
-        buttonBox.getChildren().addAll(cancelBtn, saveBtn);
-
-        root.setTop(header);
-        root.setCenter(scrollPane);
-        root.setBottom(buttonBox);
-
-        // --- ACTION UPLOAD ---
-        browseBtn.setOnAction(e -> {
-            FileChooser fc = new FileChooser();
-            fc.setTitle("Choisir une image");
-            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Images", "*.png", "*.jpg", "*.jpeg"));
-
-            File file = fc.showOpenDialog(dialog);
-            if (file != null) {
-                String storedPath = copyImageToStorage(file);
-                if (storedPath != null) {
-                    selectedImagePath = storedPath;
-                    Image newImage = loadImageFromStorage(storedPath);
-                    if (newImage != null) {
-                        previewImageView.setImage(newImage);
-                    }
-                    clearImageBtn.setVisible(true);
-                }
-            }
-        });
-
-        // --- ACTION GÉNÉRATION IA - SECURE VERSION ---
-        generateAIBtn.setOnAction(e -> {
-            String description = descArea.getText().trim();
-            String titre = titreField.getText().trim();
-
-            if (description.isEmpty() && titre.isEmpty()) {
-                Alert alert = new Alert(Alert.AlertType.WARNING);
-                alert.setTitle("Information");
-                alert.setHeaderText("Description ou titre requis");
-                alert.setContentText("Veuillez saisir une description pour générer une image.");
-                alert.showAndWait();
-                return;
-            }
-
-            String prompt = description.isEmpty() ? titre : description;
-
-            generateAIBtn.setDisable(true);
-            browseBtn.setDisable(true);
-            aiProgress.setVisible(true);
-
-            Task<String> generateTask = new Task<String>() {
-                @Override
-                protected String call() throws Exception {
-                    return generateImageWithAI(prompt);
-                }
-
-                @Override
-                protected void succeeded() {
-                    super.succeeded();
-                    String result = getValue();
-
-                    Platform.runLater(() -> {
-                        if (result != null) {
-                            selectedImagePath = result;
-                            Image newImage = loadImageFromStorage(result);
-                            if (newImage != null) {
-                                previewImageView.setImage(newImage);
-                            }
-                            clearImageBtn.setVisible(true);
-
-                            Alert success = new Alert(Alert.AlertType.INFORMATION);
-                            success.setTitle("Succès");
-                            success.setHeaderText("✅ Image ajoutée");
-                            success.setContentText("L'image a été téléchargée avec succès.");
-                            success.showAndWait();
-                        } else {
-                            Alert warning = new Alert(Alert.AlertType.WARNING);
-                            warning.setTitle("Information");
-                            warning.setHeaderText("⚠️ Utilisation d'image gratuite");
-                            warning.setContentText("Une image gratuite a été utilisée à la place.");
-                            warning.showAndWait();
-                        }
-
-                        generateAIBtn.setDisable(false);
-                        browseBtn.setDisable(false);
-                        aiProgress.setVisible(false);
-                    });
-                }
-
-                @Override
-                protected void failed() {
-                    super.failed();
-
-                    Platform.runLater(() -> {
-                        generateAIBtn.setDisable(false);
-                        browseBtn.setDisable(false);
-                        aiProgress.setVisible(false);
-
-                        Alert error = new Alert(Alert.AlertType.ERROR);
-                        error.setTitle("Erreur");
-                        error.setHeaderText("❌ Échec du téléchargement");
-                        error.setContentText("Impossible de télécharger l'image. Veuillez réessayer.");
-                        error.showAndWait();
-                    });
-                }
-            };
-
-            new Thread(generateTask).start();
-        });
-
-        // --- ACTION EFFACER ---
-        clearImageBtn.setOnAction(e -> {
-            selectedImagePath = "";
-            previewImageView.setImage(new Image("https://via.placeholder.com/200x120/e2e8f0/1e293b?text=Image"));
-            clearImageBtn.setVisible(false);
-        });
-
-        // --- VALIDATION ET SAUVEGARDE ---
-        saveBtn.setOnAction(e -> {
-            titreError.setVisible(false);
-            descError.setVisible(false);
-            dateError.setVisible(false);
-            lieuError.setVisible(false);
-
-            titreField.setStyle("-fx-border-color: #cbd5e1;");
-            descArea.setStyle("-fx-border-color: #cbd5e1;");
-            datePicker.setStyle("-fx-border-color: #cbd5e1;");
-            lieuField.setStyle("-fx-border-color: #cbd5e1;");
-
-            String titre = titreField.getText().trim();
-            String description = descArea.getText().trim();
-            LocalDate date = datePicker.getValue();
-            String lieu = lieuField.getText().trim();
-            int hour = hourSpinner.getValue();
-            int minute = minuteSpinner.getValue();
-
-            boolean isValid = true;
-
-            if (titre.isEmpty()) {
-                titreField.setStyle("-fx-border-color: #ef4444; -fx-border-width: 2;");
-                titreError.setText("🔴 Titre obligatoire");
-                titreError.setVisible(true);
-                isValid = false;
-            } else if (titre.length() < 3) {
-                titreField.setStyle("-fx-border-color: #ef4444; -fx-border-width: 2;");
-                titreError.setText("🔴 Minimum 3 caractères");
-                titreError.setVisible(true);
-                isValid = false;
-            }
-
-            if (description.isEmpty()) {
-                descArea.setStyle("-fx-border-color: #ef4444; -fx-border-width: 2;");
-                descError.setText("🔴 Description obligatoire");
-                descError.setVisible(true);
-                isValid = false;
-            } else if (description.length() < 10) {
-                descArea.setStyle("-fx-border-color: #ef4444; -fx-border-width: 2;");
-                descError.setText("🔴 Minimum 10 caractères");
-                descError.setVisible(true);
-                isValid = false;
-            }
-
-            if (date == null) {
-                datePicker.setStyle("-fx-border-color: #ef4444; -fx-border-width: 2;");
-                dateError.setText("🔴 Date obligatoire");
-                dateError.setVisible(true);
-                isValid = false;
-            } else {
-                LocalDateTime eventDateTime = LocalDateTime.of(date, LocalTime.of(hour, minute));
-                if (eventDateTime.isBefore(LocalDateTime.now())) {
-                    datePicker.setStyle("-fx-border-color: #ef4444; -fx-border-width: 2;");
-                    dateError.setText("🔴 Date future requise");
-                    dateError.setVisible(true);
-                    isValid = false;
-                }
-            }
-
-            if (lieu.isEmpty()) {
-                lieuField.setStyle("-fx-border-color: #ef4444; -fx-border-width: 2;");
-                lieuError.setText("🔴 Lieu obligatoire");
-                lieuError.setVisible(true);
-                isValid = false;
-            } else if (lieu.length() < 3) {
-                lieuField.setStyle("-fx-border-color: #ef4444; -fx-border-width: 2;");
-                lieuError.setText("🔴 Minimum 3 caractères");
-                lieuError.setVisible(true);
-                isValid = false;
-            }
-
-            if (!isValid) return;
-
-            LocalDateTime eventDateTime = LocalDateTime.of(date, LocalTime.of(hour, minute));
-
-            Event event = existingEvent != null ? existingEvent : new Event();
-            event.setTitre(titre);
-            event.setDescription(description);
-            event.setDate_evenement(eventDateTime);
-            event.setLieu(lieu);
-            event.setId_organisateur(currentUser.getId());
-            event.setCapacite_max(capaciteSpinner.getValue());
-
-            if (selectedImagePath != null && !selectedImagePath.isEmpty()) {
-                event.setImage_evenement(selectedImagePath);
-            }
-
-            boolean success;
-            if (existingEvent == null) {
-                success = eventService.addEvent(event);
-            } else {
-                success = eventService.updateEvent(event);
-            }
-
-            if (success) {
-                refreshData();
-                dialog.close();
-
-                Alert successAlert = new Alert(Alert.AlertType.INFORMATION);
-                successAlert.setTitle("Succès");
-                successAlert.setHeaderText(null);
-                successAlert.setContentText("✅ Événement " + (existingEvent == null ? "créé" : "modifié") + " !");
-                successAlert.showAndWait();
-            }
-        });
-
-        Scene scene = new Scene(root, 700, 750);
-        dialog.setScene(scene);
-        dialog.showAndWait();
-    }
-
-    // ============ GESTION DES PARTICIPANTS ============
-
-    @SuppressWarnings("unchecked")
     private void showParticipantsDialog(Event event) {
         Stage dialog = new Stage();
         dialog.initModality(Modality.APPLICATION_MODAL);
-        dialog.setTitle("Participants");
+        dialog.setTitle("Participants - " + event.getTitre());
 
-        VBox content = new VBox(15);
-        content.setPadding(new Insets(20));
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(25));
         content.setStyle("-fx-background-color: white;");
-        content.setPrefWidth(600);
-        content.setPrefHeight(400);
+        content.setPrefWidth(700);
+        content.setPrefHeight(500);
 
-        HBox header = new HBox(10);
+        HBox header = new HBox(15);
         header.setAlignment(Pos.CENTER_LEFT);
         header.setPadding(new Insets(0, 0, 15, 0));
-        header.setStyle("-fx-border-color: #e2e8f0; -fx-border-width: 0 0 1 0;");
+        header.setStyle("-fx-border-color: " + BORDER_COLOR + "; -fx-border-width: 0 0 1 0;");
 
         Label iconLabel = new Label("👥");
-        iconLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 28));
+        iconLabel.setFont(Font.font("System", FontWeight.BOLD, 28));
 
-        VBox headerText = new VBox(3);
-        Label headerTitle = new Label("Participants");
-        headerTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
+        VBox headerText = new VBox(5);
+        Label headerTitle = new Label(event.getTitre());
+        headerTitle.setFont(Font.font("System", FontWeight.BOLD, 18));
+        headerTitle.setTextFill(Color.web(DARK_COLOR));
 
-        Label headerSubtitle = new Label(event.getTitre().length() > 30 ?
-                event.getTitre().substring(0, 27) + "..." : event.getTitre());
-        headerSubtitle.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 12));
-        headerSubtitle.setTextFill(Color.web("#64748b"));
+        Label headerSubtitle = new Label(event.getFormattedDate() + " - " + event.getLieu());
+        headerSubtitle.setFont(Font.font("System", 12));
+        headerSubtitle.setTextFill(Color.web("#6c757d"));
 
         headerText.getChildren().addAll(headerTitle, headerSubtitle);
         header.getChildren().addAll(iconLabel, headerText);
 
-        HBox statsBox = new HBox(15);
+        HBox statsBox = new HBox(20);
         statsBox.setPadding(new Insets(15));
-        statsBox.setStyle("-fx-background-color: #f8fafc; -fx-background-radius: 12;");
+        statsBox.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 12;");
 
         statsBox.getChildren().addAll(
-                createStatSmall("Inscrits", String.valueOf(event.getParticipantsInscrits()), "#3b82f6"),
-                createStatSmall("Présents", String.valueOf(event.getParticipantsPresents()), "#10b981"),
-                createStatSmall("Absents", String.valueOf(event.getParticipantsAbsents()), "#ef4444")
+                createStatSmall("Inscrits", String.valueOf(event.getParticipantsInscrits()), WARNING_COLOR),
+                createStatSmall("Présents", String.valueOf(event.getParticipantsPresents()), SUCCESS_COLOR),
+                createStatSmall("Absents", String.valueOf(event.getParticipantsAbsents()), DANGER_COLOR)
         );
 
         TableView<User> participantTable = new TableView<>();
         participantTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        participantTable.setStyle("-fx-background-color: transparent;");
 
         TableColumn<User, String> nomCol = new TableColumn<>("Nom");
         nomCol.setCellValueFactory(cellData ->
@@ -1240,12 +699,17 @@ public class EventView {
                 } else {
                     setText(statut.substring(0, 1).toUpperCase());
                     setAlignment(Pos.CENTER);
-                    setFont(Font.font("Arial", FontWeight.BOLD, 12));
+                    setFont(Font.font("System", FontWeight.BOLD, 12));
 
                     switch (statut.toLowerCase()) {
-                        case "present": setStyle("-fx-text-fill: #10b981;"); break;
-                        case "absent": setStyle("-fx-text-fill: #ef4444;"); break;
-                        default: setStyle("-fx-text-fill: #3b82f6;");
+                        case "present":
+                            setStyle("-fx-text-fill: " + SUCCESS_COLOR + ";");
+                            break;
+                        case "absent":
+                            setStyle("-fx-text-fill: " + DANGER_COLOR + ";");
+                            break;
+                        default:
+                            setStyle("-fx-text-fill: " + WARNING_COLOR + ";");
                     }
                 }
             }
@@ -1254,11 +718,11 @@ public class EventView {
         participantTable.getColumns().addAll(nomCol, emailCol, statutCol);
 
         List<User> participants = eventService.getParticipantsByEvent(event.getId_evenement());
-        participantTable.setItems(javafx.collections.FXCollections.observableArrayList(participants));
+        participantTable.setItems(FXCollections.observableArrayList(participants));
 
         Button closeBtn = new Button("Fermer");
-        closeBtn.setStyle("-fx-background-color: #e2e8f0; -fx-text-fill: #1e293b; " +
-                "-fx-font-weight: bold; -fx-padding: 8 20; -fx-background-radius: 6;");
+        closeBtn.setStyle("-fx-background-color: " + BORDER_COLOR + "; -fx-text-fill: " + DARK_COLOR + "; " +
+                "-fx-font-weight: bold; -fx-padding: 10 25; -fx-background-radius: 8; -fx-cursor: hand;");
         closeBtn.setOnAction(e -> dialog.close());
 
         content.getChildren().addAll(header, statsBox, participantTable, closeBtn);
@@ -1279,7 +743,7 @@ public class EventView {
         Label valLbl = new Label(value);
         valLbl.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: " + color + ";");
         Label titleLbl = new Label(label);
-        titleLbl.setStyle("-fx-font-size: 10px; -fx-text-fill: #475569;");
+        titleLbl.setStyle("-fx-font-size: 10px; -fx-text-fill: #6c757d;");
 
         card.getChildren().addAll(valLbl, titleLbl);
         return card;
@@ -1288,22 +752,461 @@ public class EventView {
     private void deleteEvent(Event event) {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
         alert.setTitle("Confirmation");
-        alert.setHeaderText("Supprimer ?");
-        alert.setContentText("Supprimer " + event.getTitre() + " ?");
+        alert.setHeaderText("Supprimer l'événement ?");
+        alert.setContentText("Voulez-vous vraiment supprimer \"" + event.getTitre() + "\" ?\nCette action est irréversible.");
 
         Optional<ButtonType> result = alert.showAndWait();
         if (result.isPresent() && result.get() == ButtonType.OK) {
             if (eventService.deleteEvent(event.getId_evenement())) {
                 refreshData();
+                showAlert("Succès", "✅ Événement supprimé avec succès !");
             }
         }
     }
 
-    private void scaleNode(javafx.scene.Node node, double scale) {
-        ScaleTransition st = new ScaleTransition(Duration.millis(150), node);
-        st.setToX(scale);
-        st.setToY(scale);
-        st.play();
+    @SuppressWarnings("unchecked")
+    private void openEventDialog(Event existingEvent) {
+        Stage dialog = new Stage();
+        dialog.initModality(Modality.APPLICATION_MODAL);
+        dialog.setTitle(existingEvent == null ? "🎯 Créer un événement" : "✏️ Modifier l'événement");
+        dialog.setResizable(false);
+        dialog.setWidth(700);
+        dialog.setHeight(800);
+
+        BorderPane root = new BorderPane();
+        root.setStyle("-fx-background-color: " + LIGHT_GRAY + ";");
+
+        HBox header = new HBox(15);
+        header.setPadding(new Insets(15, 20, 15, 20));
+        header.setStyle("-fx-background-color: " + PRIMARY_COLOR + ";");
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        Label headerIcon = new Label(existingEvent == null ? "🎯" : "✏️");
+        headerIcon.setFont(Font.font("System", 28));
+        headerIcon.setTextFill(Color.WHITE);
+
+        VBox headerText = new VBox(3);
+        Label headerTitle = new Label(existingEvent == null ? "Créer un événement" : "Modifier l'événement");
+        headerTitle.setFont(Font.font("System", FontWeight.BOLD, 18));
+        headerTitle.setTextFill(Color.WHITE);
+
+        Label headerSubtitle = new Label(existingEvent == null
+                ? "Remplissez les informations ci-dessous"
+                : "Modifiez les informations");
+        headerSubtitle.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        headerSubtitle.setTextFill(Color.web("#e0e0e0"));
+
+        headerText.getChildren().addAll(headerTitle, headerSubtitle);
+        header.getChildren().addAll(headerIcon, headerText);
+
+        VBox form = new VBox(15);
+        form.setPadding(new Insets(20));
+        form.setStyle("-fx-background-color: white; -fx-background-radius: 12;");
+
+        // TITRE
+        VBox titleBox = new VBox(3);
+        Label titleLabel = new Label("📝 Titre *");
+        titleLabel.setFont(Font.font("System", FontWeight.BOLD, 12));
+
+        TextField titreField = new TextField(existingEvent != null ? existingEvent.getTitre() : "");
+        titreField.setPromptText("Ex: Nettoyage de la plage");
+        titreField.setStyle("-fx-background-radius: 8; -fx-padding: 10; " +
+                "-fx-border-color: " + BORDER_COLOR + "; -fx-border-radius: 8;");
+
+        Label titreError = new Label();
+        titreError.setFont(Font.font("System", FontWeight.NORMAL, 11));
+        titreError.setTextFill(Color.web(DANGER_COLOR));
+        titreError.setVisible(false);
+
+        titleBox.getChildren().addAll(titleLabel, titreField, titreError);
+
+        // DESCRIPTION
+        VBox descBox = new VBox(3);
+        Label descLabel = new Label("📄 Description *");
+        descLabel.setFont(Font.font("System", FontWeight.BOLD, 12));
+
+        TextArea descArea = new TextArea(existingEvent != null ? existingEvent.getDescription() : "");
+        descArea.setPromptText("Décrivez votre événement...");
+        descArea.setPrefRowCount(3);
+        descArea.setWrapText(true);
+        descArea.setStyle("-fx-background-radius: 8; -fx-padding: 10; " +
+                "-fx-border-color: " + BORDER_COLOR + "; -fx-border-radius: 8;");
+
+        Label descError = new Label();
+        descError.setFont(Font.font("System", FontWeight.NORMAL, 11));
+        descError.setTextFill(Color.web(DANGER_COLOR));
+        descError.setVisible(false);
+
+        descBox.getChildren().addAll(descLabel, descArea, descError);
+
+        // DATE ET HEURE
+        VBox dateBox = new VBox(3);
+        Label dateLabel = new Label("📅 Date & Heure *");
+        dateLabel.setFont(Font.font("System", FontWeight.BOLD, 12));
+
+        HBox dateTimeBox = new HBox(10);
+        dateTimeBox.setAlignment(Pos.CENTER_LEFT);
+
+        DatePicker datePicker = new DatePicker();
+        datePicker.setPrefWidth(180);
+        datePicker.setStyle("-fx-background-radius: 8; -fx-padding: 8; " +
+                "-fx-border-color: " + BORDER_COLOR + "; -fx-border-radius: 8;");
+
+        Spinner<Integer> hourSpinner = new Spinner<>(0, 23, 9);
+        hourSpinner.setPrefWidth(70);
+        hourSpinner.setStyle("-fx-background-radius: 8; -fx-padding: 6; " +
+                "-fx-border-color: " + BORDER_COLOR + "; -fx-border-radius: 8;");
+
+        Label hourLabel = new Label("h");
+        hourLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+
+        Spinner<Integer> minuteSpinner = new Spinner<>(0, 59, 0);
+        minuteSpinner.setPrefWidth(70);
+        minuteSpinner.setStyle("-fx-background-radius: 8; -fx-padding: 6; " +
+                "-fx-border-color: " + BORDER_COLOR + "; -fx-border-radius: 8;");
+
+        if (existingEvent != null && existingEvent.getDate_evenement() != null) {
+            datePicker.setValue(existingEvent.getDate_evenement().toLocalDate());
+            hourSpinner.getValueFactory().setValue(existingEvent.getDate_evenement().getHour());
+            minuteSpinner.getValueFactory().setValue(existingEvent.getDate_evenement().getMinute());
+        } else {
+            datePicker.setValue(LocalDate.now().plusDays(7));
+        }
+
+        dateTimeBox.getChildren().addAll(datePicker, hourSpinner, hourLabel, minuteSpinner);
+
+        Label dateError = new Label();
+        dateError.setFont(Font.font("System", FontWeight.NORMAL, 11));
+        dateError.setTextFill(Color.web(DANGER_COLOR));
+        dateError.setVisible(false);
+
+        dateBox.getChildren().addAll(dateLabel, dateTimeBox, dateError);
+
+        // LIEU
+        VBox lieuBox = new VBox(3);
+        Label lieuLabel = new Label("📍 Lieu *");
+        lieuLabel.setFont(Font.font("System", FontWeight.BOLD, 12));
+
+        TextField lieuField = new TextField(existingEvent != null ? existingEvent.getLieu() : "");
+        lieuField.setPromptText("Ex: Plage de Sousse");
+        lieuField.setStyle("-fx-background-radius: 8; -fx-padding: 10; " +
+                "-fx-border-color: " + BORDER_COLOR + "; -fx-border-radius: 8;");
+
+        Label lieuError = new Label();
+        lieuError.setFont(Font.font("System", FontWeight.NORMAL, 11));
+        lieuError.setTextFill(Color.web(DANGER_COLOR));
+        lieuError.setVisible(false);
+
+        lieuBox.getChildren().addAll(lieuLabel, lieuField, lieuError);
+
+        // CAPACITÉ
+        VBox capaciteBox = new VBox(3);
+        Label capaciteLabel = new Label("👥 Capacité max");
+        capaciteLabel.setFont(Font.font("System", FontWeight.BOLD, 12));
+
+        HBox capaciteControl = new HBox(10);
+        capaciteControl.setAlignment(Pos.CENTER_LEFT);
+
+        Spinner<Integer> capaciteSpinner = new Spinner<>(1, 1000, 50);
+        capaciteSpinner.setEditable(true);
+        capaciteSpinner.setPrefWidth(100);
+        capaciteSpinner.setStyle("-fx-background-radius: 8; -fx-padding: 6; " +
+                "-fx-border-color: " + BORDER_COLOR + "; -fx-border-radius: 8;");
+
+        Label capaciteHelp = new Label("(optionnel)");
+        capaciteHelp.setFont(Font.font("System", FontWeight.NORMAL, 11));
+        capaciteHelp.setTextFill(Color.web("#6c757d"));
+
+        if (existingEvent != null && existingEvent.getCapacite_max() != null) {
+            capaciteSpinner.getValueFactory().setValue(existingEvent.getCapacite_max());
+        }
+
+        capaciteControl.getChildren().addAll(capaciteSpinner, capaciteHelp);
+        capaciteBox.getChildren().addAll(capaciteLabel, capaciteControl);
+
+        // SECTION IMAGE
+        VBox imageSection = new VBox(10);
+        imageSection.setPadding(new Insets(15));
+        imageSection.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 12;");
+
+        Label imageTitle = new Label("🖼️ Image");
+        imageTitle.setFont(Font.font("System", FontWeight.BOLD, 13));
+
+        ImageView previewImageView = new ImageView();
+        previewImageView.setFitWidth(200);
+        previewImageView.setFitHeight(120);
+        previewImageView.setPreserveRatio(true);
+
+        Rectangle previewClip = new Rectangle(200, 120);
+        previewClip.setArcWidth(12);
+        previewClip.setArcHeight(12);
+        previewImageView.setClip(previewClip);
+
+        selectedImagePath = "";
+        previewImageView.setImage(new Image("https://via.placeholder.com/200x120/" + PRIMARY_COLOR.substring(1) + "/ffffff?text=Image"));
+
+        if (existingEvent != null && existingEvent.getImage_evenement() != null && !existingEvent.getImage_evenement().isEmpty()) {
+            Image existingImage = loadImageFromStorage(existingEvent.getImage_evenement());
+            if (existingImage != null) {
+                previewImageView.setImage(existingImage);
+                selectedImagePath = existingEvent.getImage_evenement();
+            }
+        }
+
+        VBox previewBox = new VBox(5, previewImageView);
+        previewBox.setAlignment(Pos.CENTER);
+
+        FlowPane imageButtons = new FlowPane();
+        imageButtons.setAlignment(Pos.CENTER);
+        imageButtons.setHgap(10);
+        imageButtons.setVgap(10);
+        imageButtons.setPadding(new Insets(5, 0, 5, 0));
+
+        Button browseBtn = new Button("📁 Choisir");
+        browseBtn.setStyle("-fx-background-color: " + PRIMARY_COLOR + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-padding: 8 15; -fx-background-radius: 6; " +
+                "-fx-font-size: 12px; -fx-cursor: hand;");
+
+        Button clearImageBtn = new Button("🗑️ Effacer");
+        clearImageBtn.setStyle("-fx-background-color: " + DANGER_COLOR + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-padding: 8 15; -fx-background-radius: 6; " +
+                "-fx-font-size: 12px; -fx-cursor: hand;");
+        clearImageBtn.setVisible(!selectedImagePath.isEmpty());
+
+        Button aiGenerateBtn = new Button("✨ Générer avec IA");
+        aiGenerateBtn.setStyle("-fx-background-color: " + AI_COLOR + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-padding: 8 15; -fx-background-radius: 6; " +
+                "-fx-font-size: 12px; -fx-cursor: hand;");
+        aiGenerateBtn.setTooltip(new Tooltip("Générer une image avec Stability AI"));
+
+        ProgressIndicator aiProgressIndicator = new ProgressIndicator();
+        aiProgressIndicator.setVisible(false);
+        aiProgressIndicator.setPrefSize(25, 25);
+
+        imageButtons.getChildren().addAll(browseBtn, clearImageBtn, aiGenerateBtn, aiProgressIndicator);
+        imageSection.getChildren().addAll(imageTitle, previewBox, imageButtons);
+
+        browseBtn.setOnAction(e -> {
+            FileChooser fc = new FileChooser();
+            fc.setTitle("Choisir une image");
+            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Images", "*.png", "*.jpg", "*.jpeg", "*.gif"));
+
+            File file = fc.showOpenDialog(dialog);
+            if (file != null) {
+                String storedPath = copyImageToStorage(file);
+                if (storedPath != null) {
+                    selectedImagePath = storedPath;
+                    Image newImage = loadImageFromStorage(storedPath);
+                    if (newImage != null) {
+                        previewImageView.setImage(newImage);
+                        clearImageBtn.setVisible(true);
+                    }
+                }
+            }
+        });
+
+        clearImageBtn.setOnAction(e -> {
+            selectedImagePath = "";
+            previewImageView.setImage(new Image("https://via.placeholder.com/200x120/" + PRIMARY_COLOR.substring(1) + "/ffffff?text=Image"));
+            clearImageBtn.setVisible(false);
+        });
+
+        AIImageGenerationService aiImageService = new AIImageGenerationService();
+
+        if (aiImageService.isConfigured()) {
+            aiGenerateBtn.setText("✨ Générer avec " + aiImageService.getModelName());
+        }
+
+        aiGenerateBtn.setOnAction(e -> {
+            String titre = titreField.getText().trim();
+            String description = descArea.getText().trim();
+
+            if (titre.isEmpty()) {
+                showAlert("Information manquante", "Veuillez d'abord saisir un titre");
+                return;
+            }
+
+            if (description.isEmpty()) {
+                showAlert("Information manquante", "Veuillez d'abord saisir une description");
+                return;
+            }
+
+            aiGenerateBtn.setDisable(true);
+            aiProgressIndicator.setVisible(true);
+            previewImageView.setImage(new Image("https://via.placeholder.com/200x120/9b59b6/ffffff?text=Génération..."));
+
+            new Thread(() -> {
+                try {
+                    String generatedPath = aiImageService.generateEventImage(titre, description);
+
+                    Platform.runLater(() -> {
+                        aiProgressIndicator.setVisible(false);
+                        aiGenerateBtn.setDisable(false);
+
+                        if (generatedPath != null) {
+                            selectedImagePath = generatedPath;
+                            Image newImage = loadImageFromStorage(generatedPath);
+                            if (newImage != null) {
+                                previewImageView.setImage(newImage);
+                                clearImageBtn.setVisible(true);
+                                showAlert("Succès", "✅ Image générée avec succès !");
+                            } else {
+                                previewImageView.setImage(new Image("https://via.placeholder.com/200x120/" + PRIMARY_COLOR.substring(1) + "/ffffff?text=Image"));
+                                showAlert("Erreur", "❌ Échec du chargement de l'image");
+                            }
+                        } else {
+                            previewImageView.setImage(new Image("https://via.placeholder.com/200x120/" + PRIMARY_COLOR.substring(1) + "/ffffff?text=Image"));
+                            showAlert("Erreur", "❌ Échec de la génération");
+                        }
+                    });
+                } catch (Exception ex) {
+                    Platform.runLater(() -> {
+                        aiProgressIndicator.setVisible(false);
+                        aiGenerateBtn.setDisable(false);
+                        previewImageView.setImage(new Image("https://via.placeholder.com/200x120/" + PRIMARY_COLOR.substring(1) + "/ffffff?text=Image"));
+                        showAlert("Erreur", "❌ Erreur: " + ex.getMessage());
+                    });
+                }
+            }).start();
+        });
+
+        form.getChildren().addAll(titleBox, descBox, dateBox, lieuBox, capaciteBox, imageSection);
+
+        ScrollPane scrollPane = new ScrollPane(form);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background-color: transparent; -fx-border-color: transparent;");
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollPane.setPrefViewportHeight(500);
+
+        HBox buttonBox = new HBox(15);
+        buttonBox.setPadding(new Insets(15, 20, 20, 20));
+        buttonBox.setAlignment(Pos.CENTER_RIGHT);
+        buttonBox.setStyle("-fx-background-color: white; -fx-border-color: " + BORDER_COLOR + "; -fx-border-width: 1 0 0 0;");
+
+        Button cancelBtn = new Button("Annuler");
+        cancelBtn.setStyle("-fx-background-color: " + BORDER_COLOR + "; -fx-text-fill: " + DARK_COLOR + "; " +
+                "-fx-font-weight: bold; -fx-padding: 10 25; -fx-background-radius: 8; -fx-cursor: hand;");
+        cancelBtn.setOnAction(e -> {
+            selectedImagePath = "";
+            dialog.close();
+        });
+
+        Button saveBtn = new Button(existingEvent == null ? "Soumettre pour validation" : "Enregistrer");
+        saveBtn.setStyle("-fx-background-color: " + SUCCESS_COLOR + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-padding: 10 25; -fx-background-radius: 8; -fx-cursor: hand;");
+
+        saveBtn.setOnAction(e -> {
+            titreError.setVisible(false);
+            descError.setVisible(false);
+            dateError.setVisible(false);
+            lieuError.setVisible(false);
+
+            String titre = titreField.getText().trim();
+            String description = descArea.getText().trim();
+            LocalDate date = datePicker.getValue();
+            String lieu = lieuField.getText().trim();
+            int hour = hourSpinner.getValue();
+            int minute = minuteSpinner.getValue();
+
+            boolean isValid = true;
+
+            if (titre.isEmpty()) {
+                titreError.setText("🔴 Titre obligatoire");
+                titreError.setVisible(true);
+                isValid = false;
+            } else if (titre.length() < 3) {
+                titreError.setText("🔴 Minimum 3 caractères");
+                titreError.setVisible(true);
+                isValid = false;
+            }
+
+            if (description.isEmpty()) {
+                descError.setText("🔴 Description obligatoire");
+                descError.setVisible(true);
+                isValid = false;
+            } else if (description.length() < 10) {
+                descError.setText("🔴 Minimum 10 caractères");
+                descError.setVisible(true);
+                isValid = false;
+            }
+
+            if (date == null) {
+                dateError.setText("🔴 Date obligatoire");
+                dateError.setVisible(true);
+                isValid = false;
+            } else {
+                LocalDateTime eventDateTime = LocalDateTime.of(date, LocalTime.of(hour, minute));
+                if (eventDateTime.isBefore(LocalDateTime.now())) {
+                    dateError.setText("🔴 Date future requise");
+                    dateError.setVisible(true);
+                    isValid = false;
+                }
+            }
+
+            if (lieu.isEmpty()) {
+                lieuError.setText("🔴 Lieu obligatoire");
+                lieuError.setVisible(true);
+                isValid = false;
+            } else if (lieu.length() < 3) {
+                lieuError.setText("🔴 Minimum 3 caractères");
+                lieuError.setVisible(true);
+                isValid = false;
+            }
+
+            if (!isValid) return;
+
+            LocalDateTime eventDateTime = LocalDateTime.of(date, LocalTime.of(hour, minute));
+
+            Event event = existingEvent != null ? existingEvent : new Event();
+            event.setTitre(titre);
+            event.setDescription(description);
+            event.setDate_evenement(eventDateTime);
+            event.setLieu(lieu);
+            event.setId_organisateur(currentUser.getId());
+            event.setCapacite_max(capaciteSpinner.getValue());
+
+            if (!selectedImagePath.isEmpty()) {
+                event.setImage_evenement(selectedImagePath);
+            }
+
+            boolean success;
+            if (existingEvent == null) {
+                success = eventService.addEvent(event);
+                if (success) {
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle("Événement soumis");
+                    alert.setHeaderText(null);
+                    alert.setContentText("Votre événement a été soumis pour validation par l'administrateur. Vous recevrez une notification lorsqu'il sera approuvé.");
+                    alert.showAndWait();
+                }
+            } else {
+                success = eventService.updateEvent(event);
+            }
+
+            if (success) {
+                refreshData();
+                dialog.close();
+            }
+        });
+
+        buttonBox.getChildren().addAll(cancelBtn, saveBtn);
+
+        root.setTop(header);
+        root.setCenter(scrollPane);
+        root.setBottom(buttonBox);
+
+        Scene scene = new Scene(root, 700, 800);
+        dialog.setScene(scene);
+        dialog.showAndWait();
+    }
+
+    private void showAlert(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
     public VBox getView() {

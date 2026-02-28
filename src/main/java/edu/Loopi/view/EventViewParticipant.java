@@ -6,6 +6,7 @@ import edu.Loopi.entities.Participation;
 import edu.Loopi.services.EventService;
 import edu.Loopi.services.ParticipationService;
 import javafx.animation.ScaleTransition;
+import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -40,6 +41,7 @@ public class EventViewParticipant {
     private ComboBox<String> statusFilter = new ComboBox<>();
     private ComboBox<String> sortFilter = new ComboBox<>();
     private HBox statsBar = new HBox(20);
+    private Label messageInfoLabel;
 
     // Constantes pour les images
     private static final String PROJECT_ROOT = System.getProperty("user.dir");
@@ -74,6 +76,14 @@ public class EventViewParticipant {
         description.setWrapText(true);
 
         heroSection.getChildren().addAll(bigTitle, description);
+
+        // Message d'information
+        messageInfoLabel = new Label("");
+        messageInfoLabel.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
+        messageInfoLabel.setTextFill(Color.web("#059669"));
+        messageInfoLabel.setPadding(new Insets(5, 0, 0, 0));
+        messageInfoLabel.setVisible(false);
+        heroSection.getChildren().add(messageInfoLabel);
 
         // STATISTIQUES
         statsBar.setAlignment(Pos.CENTER);
@@ -163,7 +173,20 @@ public class EventViewParticipant {
     }
 
     private void loadData() {
-        allEvents = eventService.getAllEvents();
+        List<Event> tousEvents = eventService.getAllEvents();
+        // Filtrer pour ne montrer que les événements approuvés
+        allEvents = tousEvents.stream()
+                .filter(e -> "approuve".equals(e.getStatutValidation()))
+                .collect(Collectors.toList());
+
+        // Message si aucun événement approuvé
+        if (allEvents.isEmpty()) {
+            messageInfoLabel.setText("🔔 Aucun événement disponible pour le moment. Revenez plus tard !");
+            messageInfoLabel.setVisible(true);
+        } else {
+            messageInfoLabel.setVisible(false);
+        }
+
         updateStats();
         applyFilters();
     }
@@ -359,6 +382,16 @@ public class EventViewParticipant {
         StackPane.setMargin(statusBadge, new Insets(10, 10, 0, 0));
         imgContainer.getChildren().add(statusBadge);
 
+        // Badge "Approuvé"
+        Label approvedBadge = new Label("✓ Approuvé");
+        approvedBadge.setFont(Font.font("Arial", FontWeight.BOLD, 10));
+        approvedBadge.setTextFill(Color.WHITE);
+        approvedBadge.setPadding(new Insets(3, 10, 3, 10));
+        approvedBadge.setStyle("-fx-background-color: #10b981; -fx-background-radius: 20;");
+        StackPane.setAlignment(approvedBadge, Pos.TOP_LEFT);
+        StackPane.setMargin(approvedBadge, new Insets(10, 0, 0, 10));
+        imgContainer.getChildren().add(approvedBadge);
+
         // CONTENU
         VBox content = new VBox(10);
         content.setPadding(new Insets(15));
@@ -393,6 +426,12 @@ public class EventViewParticipant {
         descLabel.setFont(Font.font(11));
         descLabel.setTextFill(Color.web("#475569"));
         descLabel.setMaxHeight(40);
+
+        // Informations organisateur
+        Label organisateurLabel = new Label("👤 Organisé par: " +
+                (event.getOrganisateurNom() != null ? event.getOrganisateurNom() : "Inconnu"));
+        organisateurLabel.setFont(Font.font(10));
+        organisateurLabel.setTextFill(Color.web("#64748b"));
 
         HBox progressInfo = new HBox(15);
         progressInfo.setAlignment(Pos.CENTER_LEFT);
@@ -494,7 +533,7 @@ public class EventViewParticipant {
             }
         });
 
-        content.getChildren().addAll(dateLieu, titreLabel, descLabel, progressInfo, actionBtn);
+        content.getChildren().addAll(dateLieu, titreLabel, descLabel, organisateurLabel, progressInfo, actionBtn);
         card.getChildren().addAll(imgContainer, content);
 
         return card;
@@ -550,7 +589,15 @@ public class EventViewParticipant {
         );
         ((Label) lieuInfo.getChildren().get(1)).setFont(Font.font("Arial", 12));
 
-        infoBox.getChildren().addAll(dateInfo, lieuInfo);
+        HBox organisateurInfo = new HBox(10);
+        organisateurInfo.setAlignment(Pos.CENTER_LEFT);
+        organisateurInfo.getChildren().addAll(
+                new Label("👤"),
+                new Label("Organisateur: " + (event.getOrganisateurNom() != null ? event.getOrganisateurNom() : "Inconnu"))
+        );
+        ((Label) organisateurInfo.getChildren().get(1)).setFont(Font.font("Arial", 12));
+
+        infoBox.getChildren().addAll(dateInfo, lieuInfo, organisateurInfo);
 
         VBox formBox = new VBox(15);
         formBox.setPadding(new Insets(10, 0, 10, 0));
@@ -889,7 +936,6 @@ public class EventViewParticipant {
         alert.showAndWait();
     }
 
-    // === MÉTHODE PUBLIQUE pour UserDashboard ===
     public void showMyParticipations() {
         Stage participationsStage = new Stage();
         participationsStage.setTitle("Mes participations");
@@ -990,7 +1036,6 @@ public class EventViewParticipant {
 
                         infoCell.getChildren().addAll(dateLabel, lieuLabel);
 
-                        // Bouton gérer
                         Button gererBtn = new Button("Gérer");
                         gererBtn.setStyle("-fx-background-color: #3b82f6; -fx-text-fill: white; " +
                                 "-fx-font-weight: bold; -fx-padding: 4 12; -fx-background-radius: 6; -fx-cursor: hand;");

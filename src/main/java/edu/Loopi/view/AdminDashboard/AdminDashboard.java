@@ -17,6 +17,8 @@ import javafx.stage.Stage;
 import javafx.scene.input.KeyCode;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.web.WebEngine;
+import netscape.javascript.JSObject;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -30,13 +32,16 @@ public class AdminDashboard {
     private BorderPane root;
     private StackPane mainContentArea;
     private String currentView = "dashboard";
-    private ProductManagementView productManagementView;
 
+    // Vues
     private DashboardView dashboardView;
     private UserManagementView userManagementView;
     private UserProfileView userProfileView;
     private AnalyticsView analyticsView;
     private SettingsView settingsView;
+    private ProductManagementView productManagementView;
+    private EventManagementView eventManagementView;
+    private EventMapView eventMapView;
 
     private StackPane headerProfileContainer;
     private VBox headerProfileInfo;
@@ -79,13 +84,15 @@ public class AdminDashboard {
         this.userService = new UserService();
         SessionManager.login(user);
 
+        // Initialisation des vues
         this.dashboardView = new DashboardView(currentUser, userService, this);
         this.userManagementView = new UserManagementView(currentUser, userService, this);
         this.userProfileView = new UserProfileView(currentUser, userService, this);
         this.analyticsView = new AnalyticsView(currentUser, userService, this);
         this.settingsView = new SettingsView(currentUser, userService, this);
-
         this.productManagementView = new ProductManagementView(currentUser, userService, this);
+        this.eventManagementView = new EventManagementView(currentUser, userService, this);
+        this.eventMapView = new EventMapView(currentUser, userService, this);
     }
 
     public void start(Stage primaryStage) {
@@ -251,34 +258,95 @@ public class AdminDashboard {
         VBox navMenu = new VBox(4);
         navMenu.setPadding(new Insets(0, 0, 20, 0));
 
+        // Section PRINCIPAL
+        Label mainSection = new Label("  PRINCIPAL");
+        mainSection.setFont(Font.font("System", FontWeight.BOLD, 12));
+        mainSection.setTextFill(Color.web(getTextColorMuted()));
+        mainSection.setPadding(new Insets(0, 0, 5, 12));
+        navMenu.getChildren().add(mainSection);
+
         Button dashboardBtn = createSidebarButton("📊", "Tableau de bord", "dashboard", true);
         sidebarButtons.put("dashboard", dashboardBtn);
+        navMenu.getChildren().add(dashboardBtn);
 
-        Button usersBtn = createSidebarButton("👥", "Utilisateurs", "users", false);
+        // Section UTILISATEURS
+        Label usersSection = new Label("  UTILISATEURS");
+        usersSection.setFont(Font.font("System", FontWeight.BOLD, 12));
+        usersSection.setTextFill(Color.web(getTextColorMuted()));
+        usersSection.setPadding(new Insets(15, 0, 5, 12));
+        navMenu.getChildren().add(usersSection);
+
+        Button usersBtn = createSidebarButton("👥", "Gestion utilisateurs", "users", false);
         sidebarButtons.put("users", usersBtn);
+        navMenu.getChildren().add(usersBtn);
 
-        Button analyticsBtn = createSidebarButton("📈", "Statistiques", "analytics", false);
+        // Section PRODUITS
+        Label productsSection = new Label("  PRODUITS");
+        productsSection.setFont(Font.font("System", FontWeight.BOLD, 12));
+        productsSection.setTextFill(Color.web(getTextColorMuted()));
+        productsSection.setPadding(new Insets(15, 0, 5, 12));
+        navMenu.getChildren().add(productsSection);
+
+        Button productsBtn = createSidebarButton("🖼️", "Gestion galerie", "products", false);
+        sidebarButtons.put("products", productsBtn);
+        navMenu.getChildren().add(productsBtn);
+
+        // Section ÉVÉNEMENTS
+        Label eventsSection = new Label("  ÉVÉNEMENTS");
+        eventsSection.setFont(Font.font("System", FontWeight.BOLD, 12));
+        eventsSection.setTextFill(Color.web(getTextColorMuted()));
+        eventsSection.setPadding(new Insets(15, 0, 5, 12));
+        navMenu.getChildren().add(eventsSection);
+
+        Button eventsBtn = createSidebarButton("📅", "Gestion événements", "events", false);
+        sidebarButtons.put("events", eventsBtn);
+        navMenu.getChildren().add(eventsBtn);
+
+        // Section CARTE
+        Label mapSection = new Label("  CARTE");
+        mapSection.setFont(Font.font("System", FontWeight.BOLD, 12));
+        mapSection.setTextFill(Color.web(getTextColorMuted()));
+        mapSection.setPadding(new Insets(15, 0, 5, 12));
+        navMenu.getChildren().add(mapSection);
+
+        Button mapBtn = createSidebarButton("🗺️", "Carte des événements", "map", false);
+        sidebarButtons.put("map", mapBtn);
+        navMenu.getChildren().add(mapBtn);
+
+        // Section STATISTIQUES
+        Label statsSection = new Label("  STATISTIQUES");
+        statsSection.setFont(Font.font("System", FontWeight.BOLD, 12));
+        statsSection.setTextFill(Color.web(getTextColorMuted()));
+        statsSection.setPadding(new Insets(15, 0, 5, 12));
+        navMenu.getChildren().add(statsSection);
+
+        Button analyticsBtn = createSidebarButton("📈", "Analyses", "analytics", false);
         sidebarButtons.put("analytics", analyticsBtn);
-
-        // Nouveau bouton pour la gestion de galerie
-        Button galleryManagementBtn = createSidebarButton("🖼️", "Gestion Galerie", "gallery", false);
-        sidebarButtons.put("gallery", galleryManagementBtn);
+        navMenu.getChildren().add(analyticsBtn);
 
         Separator separator = new Separator();
         separator.setPadding(new Insets(12, 0, 12, 0));
         separator.setStyle("-fx-background-color: " + getBorderColor() + ";");
+        navMenu.getChildren().add(separator);
+
+        // Section PROFIL
+        Label profileSection = new Label("  PROFIL");
+        profileSection.setFont(Font.font("System", FontWeight.BOLD, 12));
+        profileSection.setTextFill(Color.web(getTextColorMuted()));
+        profileSection.setPadding(new Insets(0, 0, 5, 12));
+        navMenu.getChildren().add(profileSection);
 
         Button profileBtn = createSidebarButton("👤", "Mon profil", "profile", false);
         sidebarButtons.put("profile", profileBtn);
+        navMenu.getChildren().add(profileBtn);
 
         Button settingsBtn = createSidebarButton("⚙️", "Paramètres", "settings", false);
         sidebarButtons.put("settings", settingsBtn);
+        navMenu.getChildren().add(settingsBtn);
 
         Button helpBtn = createSidebarButton("❓", "Aide", "help", false);
         sidebarButtons.put("help", helpBtn);
-
-        navMenu.getChildren().addAll(dashboardBtn, usersBtn, analyticsBtn, galleryManagementBtn, separator, profileBtn, settingsBtn, helpBtn);
-
+        navMenu.getChildren().add(helpBtn);
 
         Region spacer = new Region();
         VBox.setVgrow(spacer, Priority.ALWAYS);
@@ -382,6 +450,81 @@ public class AdminDashboard {
         });
     }
 
+    private void switchView(String view) {
+        currentView = view;
+        updateSidebarButtons(view);
+
+        switch (view) {
+            case "dashboard":
+                showDashboard();
+                break;
+            case "users":
+                showUserManagementView();
+                break;
+            case "products":
+                showProductManagementView();
+                break;
+            case "events":
+                showEventManagementView();
+                break;
+            case "map":
+                showEventMapView();
+                break;
+            case "analytics":
+                showAnalyticsView();
+                break;
+            case "profile":
+                showUserProfileInMain();
+                break;
+            case "settings":
+                showSettingsView();
+                break;
+            case "help":
+                showHelpCenter();
+                break;
+        }
+    }
+
+    // ============ MÉTHODES D'AFFICHAGE DES VUES ============
+
+    public void showDashboard() {
+        dashboardView.showDashboard(mainContentArea, isDarkMode);
+    }
+
+    public void showUserManagementView() {
+        userManagementView.showUserManagementView(mainContentArea, isDarkMode);
+    }
+
+    public void showProductManagementView() {
+        productManagementView.showProductManagementView(mainContentArea, isDarkMode);
+    }
+
+    public void showEventManagementView() {
+        eventManagementView.showEventManagementView(mainContentArea, isDarkMode);
+    }
+
+    public void showEventMapView() {
+        eventMapView.showEventMapView(mainContentArea, isDarkMode);
+        // Configurer le pont Java-JavaScript après l'affichage de la carte
+        if (eventMapView.getWebEngine() != null) {
+            setupJavaBridge(eventMapView.getWebEngine(), eventMapView);
+        }
+    }
+
+    public void showAnalyticsView() {
+        analyticsView.showAnalyticsView(mainContentArea, isDarkMode);
+    }
+
+    public void showUserProfileInMain() {
+        userProfileView.showUserProfileView(mainContentArea, isDarkMode);
+    }
+
+    public void showSettingsView() {
+        settingsView.showSettingsView(mainContentArea, isDarkMode);
+    }
+
+    // ============ MÉTHODES UTILITAIRES ============
+
     public void toggleTheme() {
         isDarkMode = !isDarkMode;
         applyTheme();
@@ -406,9 +549,12 @@ public class AdminDashboard {
     private void refreshAllViews() {
         switch (currentView) {
             case "dashboard": showDashboard(); break;
-            case "users": showUserManagementViewInCenter(); break;
-            case "profile": showUserProfileInMain(); break;
+            case "users": showUserManagementView(); break;
+            case "products": showProductManagementView(); break;
+            case "events": showEventManagementView(); break;
+            case "map": showEventMapView(); break;
             case "analytics": showAnalyticsView(); break;
+            case "profile": showUserProfileInMain(); break;
             case "settings": showSettingsView(); break;
         }
     }
@@ -488,48 +634,6 @@ public class AdminDashboard {
 
         ((Label)userInfo.getChildren().get(0)).setText(currentUser.getNomComplet());
         ((Label)userInfo.getChildren().get(1)).setText(currentUser.getEmail());
-    }
-
-    private void switchView(String view) {
-        currentView = view;
-        updateSidebarButtons(view);
-
-        switch (view) {
-            case "dashboard": showDashboard(); break;
-            case "users": showUserManagementViewInCenter(); break;
-            case "analytics": showAnalyticsView(); break;
-
-            case "gallery": showProductManagementView(); break; // Ajoutez cette ligne
-
-
-            case "settings": showSettingsView(); break;
-            case "profile": showUserProfileInMain(); break;
-            case "help": showHelpCenter(); break;
-        }
-    }
-
-    public void showProductManagementView() {
-        productManagementView.showProductManagementView(mainContentArea, isDarkMode);
-    }
-
-    public void showDashboard() {
-        dashboardView.showDashboard(mainContentArea, isDarkMode);
-    }
-
-    public void showUserManagementViewInCenter() {
-        userManagementView.showUserManagementView(mainContentArea, isDarkMode);
-    }
-
-    public void showUserProfileInMain() {
-        userProfileView.showUserProfileView(mainContentArea, isDarkMode);
-    }
-
-    public void showAnalyticsView() {
-        analyticsView.showAnalyticsView(mainContentArea, isDarkMode);
-    }
-
-    public void showSettingsView() {
-        settingsView.showSettingsView(mainContentArea, isDarkMode);
     }
 
     public String getInitials(User user) {
@@ -628,5 +732,24 @@ public class AdminDashboard {
         } catch (Exception e) {
             System.out.println("Erreur retour login: " + e.getMessage());
         }
+    }
+
+    /**
+     * Configure le pont de communication entre Java et JavaScript pour la carte
+     */
+    public void setupJavaBridge(WebEngine webEngine, EventMapView eventMapView) {
+        webEngine.getLoadWorker().stateProperty().addListener((obs, oldState, newState) -> {
+            if (newState == javafx.concurrent.Worker.State.SUCCEEDED) {
+                JSObject window = (JSObject) webEngine.executeScript("window");
+
+                // Créer une instance du connecteur
+                EventMapView.JavaConnector connector = eventMapView.new JavaConnector();
+
+                // Exposer l'objet à JavaScript
+                window.setMember("javaApp", connector);
+
+                System.out.println("✅ Pont Java-JavaScript établi avec succès");
+            }
+        });
     }
 }

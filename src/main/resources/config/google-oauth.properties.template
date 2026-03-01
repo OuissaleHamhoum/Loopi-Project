@@ -1,0 +1,16 @@
+# =====================================================
+# CONFIGURATION GOOGLE OAUTH POUR LOOPI
+# =====================================================
+google.client.id=YOUR_CLIENT_ID_HERE
+google.client.secret=YOUR_CLIENT_SECRET_HERE
+google.redirect.uri=http://localhost:8080
+
+# URIS (DO NOT MODIFY)
+google.auth.uri=https://accounts.google.com/o/oauth2/v2/auth
+google.token.uri=https://oauth2.googleapis.com/token
+google.userinfo.uri=https://www.googleapis.com/oauth2/v3/userinfo
+
+# SCOPES
+google.scope=openid email profile
+google.response.type=code
+google.access.type=offline

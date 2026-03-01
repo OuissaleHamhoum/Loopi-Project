@@ -744,7 +744,6 @@ public class LoginView extends Application {
                 System.out.println("✅ Connexion QR réussie pour: " + user.getEmail());
                 SessionManager.login(user);
 
-                // Petit délai avant de fermer
                 PauseTransition pause = new PauseTransition(Duration.seconds(1));
                 pause.setOnFinished(e -> openDashboard(user));
                 pause.play();
@@ -770,6 +769,16 @@ public class LoginView extends Application {
         title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 28));
         title.setTextFill(Color.WHITE);
 
+        Label instruction = new Label(
+                "1. Scannez ce QR code avec votre téléphone\n" +
+                        "2. Connectez-vous avec vos identifiants\n" +
+                        "3. La connexion sera automatique sur cet ordinateur"
+        );
+        instruction.setFont(Font.font("Segoe UI", 14));
+        instruction.setTextFill(Color.web("#94a3b8"));
+        instruction.setTextAlignment(TextAlignment.CENTER);
+        instruction.setWrapText(true);
+
         var result = qrLoginService.generateQRCode(webServer.getServerUrl());
 
         if (result == null) {
@@ -787,18 +796,13 @@ public class LoginView extends Application {
         StackPane qrContainer = new StackPane(qrImageView);
         qrContainer.setStyle("-fx-background-color: white; -fx-background-radius: 16; -fx-padding: 16;");
 
-        Label instruction = new Label(
-                "1. Scannez ce QR code avec votre téléphone\n" +
-                        "2. Connectez-vous sur votre téléphone\n" +
-                        "3. La connexion sera automatique"
-        );
-        instruction.setFont(Font.font("Segoe UI", 14));
-        instruction.setTextFill(Color.web("#94a3b8"));
-        instruction.setTextAlignment(TextAlignment.CENTER);
-
         Label statusLabel = new Label("⏳ En attente de scan...");
         statusLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
         statusLabel.setTextFill(Color.ORANGE);
+
+        Label infoLabel = new Label("QR code valable 2 minutes");
+        infoLabel.setFont(Font.font("Segoe UI", 12));
+        infoLabel.setTextFill(Color.YELLOW);
 
         Button cancelBtn = new Button("❌ Fermer");
         cancelBtn.setStyle("-fx-background-color: #ef4444; -fx-text-fill: white; " +
@@ -808,7 +812,10 @@ public class LoginView extends Application {
             qrStage.close();
         });
 
-        mainContent.getChildren().addAll(title, instruction, qrContainer, statusLabel, cancelBtn);
+        VBox infoBox = new VBox(10, statusLabel, infoLabel);
+        infoBox.setAlignment(Pos.CENTER);
+
+        mainContent.getChildren().addAll(title, instruction, qrContainer, infoBox, cancelBtn);
         root.setCenter(mainContent);
 
         startQRPolling(result.sessionId, qrLoginService, qrStage, statusLabel, webServer);
@@ -855,7 +862,6 @@ public class LoginView extends Application {
         pollThread.setDaemon(true);
         pollThread.start();
     }
-
     private void stopCamera() {
         if (cameraService != null) {
             cameraService.stopCamera();

@@ -34,6 +34,12 @@ public class AdminDashboard {
     private String currentView = "dashboard";
 
     // Vues
+
+
+    private GalleryAnalyticsView galleryAnalyticsView;
+
+
+
     private DashboardView dashboardView;
     private UserManagementView userManagementView;
     private UserProfileView userProfileView;
@@ -93,6 +99,15 @@ public class AdminDashboard {
         this.productManagementView = new ProductManagementView(currentUser, userService, this);
         this.eventManagementView = new EventManagementView(currentUser, userService, this);
         this.eventMapView = new EventMapView(currentUser, userService, this);
+
+        // AJOUTEZ CETTE LIGNE
+        this.galleryAnalyticsView = new GalleryAnalyticsView(currentUser, userService, this);
+    }
+
+    // Ajoutez cette méthode pour afficher la vue
+    public void showGalleryAnalyticsView() {
+        galleryAnalyticsView.showGalleryAnalyticsView(mainContentArea, isDarkMode);
+
     }
 
     public void start(Stage primaryStage) {
@@ -291,6 +306,13 @@ public class AdminDashboard {
         sidebarButtons.put("products", productsBtn);
         navMenu.getChildren().add(productsBtn);
 
+
+        // AJOUTEZ CE BOUTON - ANALYSE DE GALERIE
+        Button galleryAnalyticsBtn = createSidebarButton("📊", "Analyse de galerie", "galleryanalytics", false);
+        sidebarButtons.put("galleryanalytics", galleryAnalyticsBtn);
+        navMenu.getChildren().add(galleryAnalyticsBtn);
+
+
         // Section ÉVÉNEMENTS
         Label eventsSection = new Label("  ÉVÉNEMENTS");
         eventsSection.setFont(Font.font("System", FontWeight.BOLD, 12));
@@ -464,6 +486,10 @@ public class AdminDashboard {
             case "products":
                 showProductManagementView();
                 break;
+            case "galleryanalytics":  // AJOUTEZ CE CAS
+                showGalleryAnalyticsView();
+                break;
+
             case "events":
                 showEventManagementView();
                 break;
@@ -551,6 +577,8 @@ public class AdminDashboard {
             case "dashboard": showDashboard(); break;
             case "users": showUserManagementView(); break;
             case "products": showProductManagementView(); break;
+            case "galleryanalytics": showGalleryAnalyticsView(); break;  // AJOUTEZ CETTE LIGNE
+
             case "events": showEventManagementView(); break;
             case "map": showEventMapView(); break;
             case "analytics": showAnalyticsView(); break;

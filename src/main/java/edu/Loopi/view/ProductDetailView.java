@@ -6,7 +6,6 @@ import edu.Loopi.entities.User;
 import edu.Loopi.services.FeedbackService;
 import edu.Loopi.services.ProduitService;
 import edu.Loopi.services.FavorisService;
-import edu.Loopi.services.OpenAIService;
 import edu.Loopi.tools.SessionManager;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -18,8 +17,6 @@ import javafx.scene.layout.*;
 import javafx.stage.Stage;
 import javafx.animation.ScaleTransition;
 import javafx.util.Duration;
-import javafx.concurrent.Task;
-import javafx.scene.control.ProgressIndicator;
 
 import java.io.File;
 import java.net.URLEncoder;
@@ -33,7 +30,6 @@ public class ProductDetailView {
     private FeedbackService feedbackService = new FeedbackService();
     private ProduitService produitService = new ProduitService();
     private FavorisService favorisService = new FavorisService();
-    private OpenAIService openAIService = new OpenAIService();
     private int selectedRating = 0;
     private Stage stage;
     private boolean estFavoris = false;
@@ -307,6 +303,7 @@ public class ProductDetailView {
      * Génère une URL pour le produit (simulée)
      */
     private String getProductUrl() {
+        // Dans une application réelle, ce serait l'URL réelle du produit
         return "https://www.loopi.tn/produit/" + produit.getId() + "/" +
                 produit.getNom().toLowerCase().replace(" ", "-");
     }
@@ -347,10 +344,12 @@ public class ProductDetailView {
         // Action du bouton
         favBtn.setOnAction(e -> {
             if (estFavoris) {
+                // Retirer des favoris
                 favorisService.supprimerFavoris(currentUser.getId(), produit.getId());
                 estFavoris = false;
                 showAlert("Succès", "Produit retiré des favoris ❌");
             } else {
+                // Ajouter aux favoris
                 favorisService.ajouterFavoris(currentUser.getId(), produit.getId());
                 estFavoris = true;
                 showAlert("Succès", "Produit ajouté aux favoris ❤️");
@@ -363,11 +362,11 @@ public class ProductDetailView {
 
     private void updateFavorisButton(Button btn) {
         if (estFavoris) {
-            btn.setText("❤️");
+            btn.setText("❤️"); // Cœur rouge plein
             btn.setStyle("-fx-background-color: transparent; -fx-font-size: 28px; -fx-text-fill: #e74c3c; -fx-cursor: hand;");
         } else {
-            btn.setText("❤️");
-            btn.setStyle("-fx-background-color: transparent; -fx-font-size: 28px; -fx-text-fill: #95a5a6; -fx-cursor: hand;");
+            btn.setText("❤️"); // On garde le même symbole mais en gris
+            btn.setStyle("-fx-background-color: transparent; -fx-font-size: 28px; -fx-text-fill: #95a5a6; -fx-cursor: hand;"); // Gris
         }
     }
 
@@ -380,23 +379,6 @@ public class ProductDetailView {
 
         Label feedbackTitle = new Label("Avis des clients");
         feedbackTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;");
-
-        // Barre d'outils IA
-        HBox aiTools = new HBox(10);
-        aiTools.setAlignment(Pos.CENTER_RIGHT);
-        aiTools.setPadding(new Insets(0, 0, 10, 0));
-
-        Button analyzeBtn = new Button("📊 Analyser les avis");
-        analyzeBtn.setStyle("-fx-background-color: #8b5cf6; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-padding: 8 15; -fx-background-radius: 5; -fx-cursor: hand;");
-        analyzeBtn.setOnAction(e -> showSentimentAnalysis());
-
-        Button chatbotBtn = new Button("🤖 Assistant virtuel");
-        chatbotBtn.setStyle("-fx-background-color: #10b981; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-padding: 8 15; -fx-background-radius: 5; -fx-cursor: hand;");
-        chatbotBtn.setOnAction(e -> showChatbot());
-
-        aiTools.getChildren().addAll(analyzeBtn, chatbotBtn);
 
         // Formulaire d'avis
         VBox formBox = new VBox(10);
@@ -445,7 +427,7 @@ public class ProductDetailView {
             }
         }
 
-        feedbackSection.getChildren().addAll(ratingHeader, feedbackTitle, aiTools, formBox, commentsList);
+        feedbackSection.getChildren().addAll(ratingHeader, feedbackTitle, formBox, commentsList);
         return feedbackSection;
     }
 
@@ -725,263 +707,6 @@ public class ProductDetailView {
                 card.setStyle("-fx-background-color: #f8f9fa; -fx-padding: 8; -fx-background-radius: 5; -fx-cursor: hand;"));
 
         return card;
-    }
-
-    /**
-     * Analyse des sentiments des avis
-     */
-    private void showSentimentAnalysis() {
-        List<Feedback> feedbacks = feedbackService.getFeedbacksByProduct(produit.getId());
-
-        if (feedbacks.isEmpty()) {
-            showAlert("Information", "Aucun avis à analyser pour ce produit.");
-            return;
-        }
-
-        Task<OpenAIService.SentimentAnalysis> task = new Task<OpenAIService.SentimentAnalysis>() {
-            @Override
-            protected OpenAIService.SentimentAnalysis call() throws Exception {
-                // Analyser le premier commentaire comme exemple
-                return openAIService.analyzeSentiment(feedbacks.get(0).getCommentaire());
-            }
-        };
-
-        task.setOnSucceeded(e -> {
-            OpenAIService.SentimentAnalysis analysis = task.getValue();
-            showSentimentResult(analysis, feedbacks.size());
-        });
-
-        task.setOnFailed(e -> {
-            showAlert("Erreur", "Échec de l'analyse des sentiments");
-        });
-
-        showLoadingDialog("Analyse des avis en cours...", task);
-        new Thread(task).start();
-    }
-
-    private void showSentimentResult(OpenAIService.SentimentAnalysis analysis, int totalAvis) {
-        Dialog<Void> dialog = new Dialog<>();
-        dialog.setTitle("📊 Analyse des sentiments");
-        dialog.setHeaderText(null);
-
-        VBox content = new VBox(20);
-        content.setPadding(new Insets(20));
-        content.setPrefWidth(450);
-
-        // En-tête avec émotion dominante
-        HBox headerBox = new HBox(15);
-        headerBox.setAlignment(Pos.CENTER_LEFT);
-
-        Label emotionIcon = new Label(analysis.getSentimentEmoji());
-        emotionIcon.setStyle("-fx-font-size: 48px;");
-
-        VBox sentimentBox = new VBox(5);
-        Label sentimentLabel = new Label("Sentiment: " + analysis.getSentiment());
-        sentimentLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: " +
-                getSentimentColor(analysis.getSentiment()) + ";");
-
-        Label scoreLabel = new Label(String.format("Score de confiance: %.0f%%", analysis.getScore() * 100));
-        scoreLabel.setStyle("-fx-font-size: 14px;");
-
-        sentimentBox.getChildren().addAll(sentimentLabel, scoreLabel);
-        headerBox.getChildren().addAll(emotionIcon, sentimentBox);
-
-        // Barre de progression
-        ProgressBar sentimentBar = new ProgressBar(analysis.getScore());
-        sentimentBar.setPrefWidth(400);
-        sentimentBar.setStyle("-fx-accent: " + getSentimentColor(analysis.getSentiment()) + ";");
-
-        // Explication
-        Label explicationLabel = new Label(analysis.getExplanation());
-        explicationLabel.setWrapText(true);
-        explicationLabel.setStyle("-fx-font-size: 14px; -fx-padding: 10; -fx-background-color: #f8f9fa; -fx-background-radius: 8;");
-
-        // Mots-clés détectés
-        if (!analysis.getMotsCles().isEmpty()) {
-            VBox keywordsBox = new VBox(10);
-            keywordsBox.setPadding(new Insets(10, 0, 0, 0));
-
-            Label keywordsTitle = new Label("🔑 Mots-clés détectés:");
-            keywordsTitle.setStyle("-fx-font-weight: bold;");
-
-            FlowPane keywordsFlow = new FlowPane(10, 10);
-            keywordsFlow.setPrefWrapLength(400);
-
-            for (String mot : analysis.getMotsCles()) {
-                Label tag = new Label(mot);
-                tag.setStyle("-fx-background-color: #e2e8f0; -fx-padding: 5 12; -fx-background-radius: 15; -fx-font-size: 12px;");
-                keywordsFlow.getChildren().add(tag);
-            }
-
-            keywordsBox.getChildren().addAll(keywordsTitle, keywordsFlow);
-            content.getChildren().add(keywordsBox);
-        }
-
-        // Statistiques
-        HBox statsBox = new HBox(20);
-        statsBox.setAlignment(Pos.CENTER);
-        statsBox.setPadding(new Insets(15, 0, 0, 0));
-        statsBox.setStyle("-fx-border-color: #e2e8f0; -fx-border-width: 1 0 0 0; -fx-padding: 15 0 0 0;");
-
-        VBox totalBox = new VBox(5);
-        totalBox.setAlignment(Pos.CENTER);
-        Label totalValue = new Label(String.valueOf(totalAvis));
-        totalValue.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
-        Label totalLabel = new Label("Total avis");
-        totalBox.getChildren().addAll(totalValue, totalLabel);
-
-        statsBox.getChildren().add(totalBox);
-
-        content.getChildren().addAll(headerBox, sentimentBar, explicationLabel, statsBox);
-
-        dialog.getDialogPane().setContent(content);
-        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-        dialog.showAndWait();
-    }
-
-    private String getSentimentColor(String sentiment) {
-        switch (sentiment) {
-            case "positif": return "#10b981";
-            case "negatif": return "#ef4444";
-            default: return "#f59e0b";
-        }
-    }
-
-    /**
-     * Chatbot pour les questions sur le produit
-     */
-    private void showChatbot() {
-        Dialog<Void> dialog = new Dialog<>();
-        dialog.setTitle("🤖 Assistant LOOPI");
-        dialog.setHeaderText("Posez vos questions sur " + produit.getNom());
-
-        VBox content = new VBox(15);
-        content.setPadding(new Insets(20));
-        content.setPrefWidth(450);
-
-        // Zone des messages
-        VBox messagesBox = new VBox(10);
-        messagesBox.setPrefHeight(300);
-        messagesBox.setStyle("-fx-background-color: #f8f9fa; -fx-padding: 10; -fx-background-radius: 8;");
-
-        ScrollPane scrollPane = new ScrollPane(messagesBox);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setPrefHeight(300);
-        scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
-
-        // Message de bienvenue
-        HBox welcomeMsg = createChatMessage("Bonjour ! Je suis l'assistant LOOPI. " +
-                "Posez-moi des questions sur les avantages de " + produit.getNom() +
-                " (qualités artistiques, écologiques, etc.)", false);
-        messagesBox.getChildren().add(welcomeMsg);
-
-        // Zone de saisie
-        HBox inputBox = new HBox(10);
-        inputBox.setAlignment(Pos.CENTER);
-
-        TextField questionField = new TextField();
-        questionField.setPromptText("Votre question...");
-        questionField.setPrefWidth(300);
-
-        Button sendBtn = new Button("Envoyer");
-        sendBtn.setStyle("-fx-background-color: #3b82f6; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 15; -fx-background-radius: 5;");
-
-        inputBox.getChildren().addAll(questionField, sendBtn);
-
-        content.getChildren().addAll(scrollPane, inputBox);
-
-        dialog.getDialogPane().setContent(content);
-        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-
-        // Gestion de l'envoi
-        sendBtn.setOnAction(e -> {
-            String question = questionField.getText().trim();
-            if (!question.isEmpty()) {
-                // Ajouter la question de l'utilisateur
-                HBox userMsg = createChatMessage(question, true);
-                messagesBox.getChildren().add(userMsg);
-
-                // Effacer le champ
-                questionField.clear();
-
-                // Faire défiler vers le bas
-                scrollPane.setVvalue(1.0);
-
-                // Obtenir la réponse de l'IA
-                Task<String> responseTask = new Task<String>() {
-                    @Override
-                    protected String call() throws Exception {
-                        String category = categoryNames.getOrDefault(produit.getIdCategorie(), "Art recyclé");
-                        return openAIService.askProductBenefits(produit.getNom(), category, question);
-                    }
-                };
-
-                responseTask.setOnSucceeded(ev -> {
-                    String response = responseTask.getValue();
-                    if (response != null && !response.isEmpty()) {
-                        HBox botMsg = createChatMessage(response, false);
-                        messagesBox.getChildren().add(botMsg);
-                        scrollPane.setVvalue(1.0);
-                    }
-                });
-
-                new Thread(responseTask).start();
-            }
-        });
-
-        // Permettre l'envoi avec Entrée
-        questionField.setOnAction(e -> sendBtn.fire());
-
-        dialog.showAndWait();
-    }
-
-    private HBox createChatMessage(String message, boolean isUser) {
-        HBox box = new HBox(10);
-        box.setAlignment(isUser ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
-        box.setPadding(new Insets(5));
-
-        Label avatar = new Label(isUser ? "👤" : "🤖");
-        avatar.setStyle("-fx-font-size: 20px;");
-
-        Label msgLabel = new Label(message);
-        msgLabel.setWrapText(true);
-        msgLabel.setMaxWidth(300);
-        msgLabel.setStyle(isUser ?
-                "-fx-background-color: #3b82f6; -fx-text-fill: white; -fx-padding: 10; -fx-background-radius: 15 15 5 15;" :
-                "-fx-background-color: #e2e8f0; -fx-text-fill: #1e293b; -fx-padding: 10; -fx-background-radius: 15 15 15 5;");
-
-        if (isUser) {
-            box.getChildren().addAll(msgLabel, avatar);
-        } else {
-            box.getChildren().addAll(avatar, msgLabel);
-        }
-
-        return box;
-    }
-
-    private void showLoadingDialog(String message, Task<?> task) {
-        Dialog<Void> dialog = new Dialog<>();
-        dialog.setTitle("🤖 Traitement IA");
-        dialog.setHeaderText(null);
-
-        VBox content = new VBox(15);
-        content.setAlignment(Pos.CENTER);
-        content.setPadding(new Insets(20));
-        content.setPrefWidth(300);
-
-        ProgressIndicator progress = new ProgressIndicator();
-        progress.setPrefSize(40, 40);
-        Label msgLabel = new Label(message);
-        msgLabel.setStyle("-fx-font-size: 14px;");
-
-        content.getChildren().addAll(progress, msgLabel);
-        dialog.getDialogPane().setContent(content);
-        dialog.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);
-
-        task.setOnSucceeded(e -> dialog.close());
-        task.setOnFailed(e -> dialog.close());
-
-        dialog.show();
     }
 
     private String formatDate(java.time.LocalDateTime date) {

@@ -195,7 +195,8 @@ public class UserDashboard {
         Button favorisBtn = createMenuButton("❤️ Mes favoris");
         favorisBtn.setOnAction(e -> showFavoris());
 
-
+        Button ordersBtn = createMenuButton("📦 Mes commandes");
+        ordersBtn.setOnAction(e -> showOrders());
 
         Label donationsSection = new Label("  COLLECTES");
         donationsSection.setFont(Font.font("Arial", FontWeight.BOLD, 12));
@@ -232,7 +233,7 @@ public class UserDashboard {
 
         menuItems.getChildren().addAll(
                 eventsSection, eventsBtn, myParticipationsBtn,
-                shopSection, browseBtn, recBtn, favorisBtn,  // recBtn ajouté ici
+                shopSection, browseBtn, recBtn, favorisBtn, ordersBtn, // recBtn ajouté ici
                 donationsSection, campaignsBtn, myDonationsBtn, myCouponsBtn,
                 profileSection, profileBtn, settingsBtn
         );
@@ -326,7 +327,16 @@ public class UserDashboard {
         }
     }
 
-
+    private void showOrders() {
+        try {
+            VBox ordersView = createOrdersView();
+            root.setCenter(ordersView);
+            System.out.println("✅ Commandes affichées");
+        } catch (Exception e) {
+            System.err.println("❌ Erreur chargement commandes: " + e.getMessage());
+            showComingSoon("Mes commandes", "📦");
+        }
+    }
 
     private void showCampaigns() {
         try {
@@ -387,8 +397,32 @@ public class UserDashboard {
         }
     }
 
+    // Vue pour les commandes
+    private VBox createOrdersView() {
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(40));
+        content.setAlignment(Pos.TOP_CENTER);
+        content.setStyle("-fx-background-color: white; -fx-background-radius: 12; " +
+                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 10, 0, 0, 2);");
 
+        Label title = new Label("📦 Mes Commandes");
+        title.setFont(Font.font("Arial", FontWeight.BOLD, 28));
+        title.setTextFill(Color.web("#064e3b"));
 
+        VBox ordersList = new VBox(10);
+        ordersList.setPadding(new Insets(20));
+        ordersList.setStyle("-fx-background-color: #f9f9f9; -fx-background-radius: 8;");
+
+        Label order1 = new Label("✅ Commande #12345 - 15/02/2024 - 3 articles - 45.99€ (Livrée)");
+        Label order2 = new Label("🔄 Commande #12344 - 10/02/2024 - 1 article - 12.50€ (En cours)");
+        Label order3 = new Label("✅ Commande #12343 - 05/02/2024 - 2 articles - 28.75€ (Livrée)");
+        Label order4 = new Label("⏳ Commande #12342 - 28/01/2024 - 4 articles - 67.30€ (En préparation)");
+
+        ordersList.getChildren().addAll(order1, order2, order3, order4);
+
+        content.getChildren().addAll(title, ordersList);
+        return content;
+    }
 
     // Vue pour les coupons
     private VBox createCouponsView() {

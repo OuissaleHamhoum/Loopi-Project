@@ -22,6 +22,7 @@ public class QRCodeWebServer {
     private Gson gson = new Gson();
     private boolean isRunning = false;
     private QRLoginCallback callback;
+    private String serverIp = "10.21.92.26"; // Votre IP WiFi fixe
 
     public interface QRLoginCallback {
         void onLoginSuccess(User user);
@@ -36,30 +37,39 @@ public class QRCodeWebServer {
         try {
             server = HttpServer.create(new InetSocketAddress(PORT), 0);
 
-            // Handlers simplifiés
             server.createContext("/", new SimpleHandler("Bienvenue sur Loopi QR"));
             server.createContext("/login", new LoginPageHandler());
             server.createContext("/api/login", new LoginApiHandler());
             server.createContext("/test", new SimpleHandler("✅ Serveur OK - Connexion établie"));
             server.createContext("/health", new SimpleHandler("✅ Serveur fonctionne normalement"));
+            server.createContext("/ips", new IPsHandler());
 
             server.setExecutor(Executors.newCachedThreadPool());
             server.start();
             isRunning = true;
 
-            System.out.println("\n" + "=".repeat(60));
-            System.out.println("✅ SERVEUR QR CODE DÉMARRÉ");
-            System.out.println("=".repeat(60));
-            System.out.println("\n📱 URL POUR LE TÉLÉPHONE:");
-            System.out.println("   ⭐ http://10.21.92.26:" + PORT + "/test");
-            System.out.println("   ⭐ http://10.21.92.26:" + PORT + "/login");
-            System.out.println("\n🔍 TEST LOCAL:");
-            System.out.println("   http://localhost:" + PORT + "/test");
-            System.out.println("=".repeat(60) + "\n");
+            printServerInfo();
 
         } catch (IOException e) {
             System.err.println("❌ Erreur: " + e.getMessage());
         }
+    }
+
+    private void printServerInfo() {
+        System.out.println("\n" + "=".repeat(70));
+        System.out.println("✅ SERVEUR QR CODE DÉMARRÉ AVEC SUCCÈS");
+        System.out.println("=".repeat(70));
+        System.out.println("\n📱 INSTRUCTIONS POUR LES UTILISATEURS:");
+        System.out.println("   1. Connectez-vous au WiFi: " + getCurrentWifiName());
+        System.out.println("   2. Scannez le QR code ou tapez l'URL:");
+        System.out.println("      ⭐ http://" + serverIp + ":" + PORT + "/login");
+        System.out.println("\n🔍 PAGES DE TEST:");
+        System.out.println("   • http://" + serverIp + ":" + PORT + "/test");
+        System.out.println("   • http://" + serverIp + ":" + PORT + "/health");
+        System.out.println("   • http://" + serverIp + ":" + PORT + "/ips");
+        System.out.println("\n⏱️  Le QR code est valable 2 minutes");
+        System.out.println("👥 Plusieurs personnes peuvent se connecter avec leurs propres comptes");
+        System.out.println("=".repeat(70) + "\n");
     }
 
     public void stop() {
@@ -71,7 +81,23 @@ public class QRCodeWebServer {
     }
 
     public String getServerUrl() {
-        return "http://10.21.92.26:" + PORT;
+        return "http://" + serverIp + ":" + PORT;
+    }
+
+    private String getCurrentWifiName() {
+        try {
+            Process process = Runtime.getRuntime().exec("netsh wlan show interfaces");
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(process.getInputStream())
+            );
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.contains("SSID") && !line.contains("BSSID")) {
+                    return line.substring(line.indexOf(":") + 1).trim();
+                }
+            }
+        } catch (Exception e) {}
+        return "le même réseau que l'ordinateur";
     }
 
     // Handler simple pour les tests
@@ -84,7 +110,9 @@ public class QRCodeWebServer {
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            String response = message + "\nHeure: " + new java.util.Date();
+            String response = message + "\nHeure: " + new java.util.Date() +
+                    "\nServeur: " + serverIp + ":" + PORT +
+                    "\nClient: " + exchange.getRemoteAddress();
             byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
 
             exchange.getResponseHeaders().set("Content-Type", "text/plain; charset=UTF-8");
@@ -96,6 +124,28 @@ public class QRCodeWebServer {
             }
 
             System.out.println("📱 " + exchange.getRequestURI() + " appelé depuis " + exchange.getRemoteAddress());
+        }
+    }
+
+    // Handler pour afficher les IPs
+    class IPsHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            String response = "🌐 SERVEUR LOOPI\n\n" +
+                    "IP du serveur: " + serverIp + "\n" +
+                    "Port: " + PORT + "\n" +
+                    "URL de connexion: http://" + serverIp + ":" + PORT + "/login\n\n" +
+                    "Pour vous connecter:\n" +
+                    "1. Scannez le QR code\n" +
+                    "2. Ou tapez l'URL ci-dessus\n" +
+                    "3. Entrez vos identifiants";
+
+            exchange.getResponseHeaders().set("Content-Type", "text/plain; charset=UTF-8");
+            exchange.sendResponseHeaders(200, response.getBytes().length);
+
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(response.getBytes());
+            }
         }
     }
 
@@ -253,6 +303,8 @@ public class QRCodeWebServer {
 
             try {
                 String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                System.out.println("📥 API login - Requête de " + exchange.getRemoteAddress());
+
                 Map<String, String> data = gson.fromJson(body, Map.class);
 
                 String sessionId = data.get("sessionId");
@@ -271,6 +323,7 @@ public class QRCodeWebServer {
                 sendJson(exchange, result.success, result.message, result.success ? 200 : 400);
 
             } catch (Exception e) {
+                System.err.println("❌ Erreur API: " + e.getMessage());
                 sendJson(exchange, false, "Erreur: " + e.getMessage(), 500);
             }
         }

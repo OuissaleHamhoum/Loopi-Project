@@ -11,8 +11,10 @@ public class User {
     private String photo;
     private String role;
     private int idGenre;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+
+        private String sexe;
+        private LocalDateTime createdAt;
+        private LocalDateTime updatedAt;
 
     // --- NEW FIELDS FOR BADGE MÉTIER AVANCÉ ---
     private double totalPlastic;
@@ -26,17 +28,24 @@ public class User {
 
     // Champ transient pour affichage
     private String sexe;
+    public User() {
+            this.photo = "default.jpg";
+            this.role = "participant";
+            this.idGenre = 3; // Non spécifié par défaut
+        }
 
     // Constructeurs
     public User() {}
 
-    public User(String nom, String prenom, String email, String password, String role) {
+    public User(int id, String nom, String prenom, String email, String password, String role) {
+        this.id = id;
         this.nom = nom;
         this.prenom = prenom;
         this.email = email;
         this.password = password;
         this.role = role;
         this.photo = "default.jpg";
+        this.idGenre = 3;
         // Initialize new fields
         this.totalPlastic = 0;
         this.totalPaper = 0;
@@ -71,15 +80,31 @@ public class User {
     public int getIdGenre() { return idGenre; }
     public void setIdGenre(int idGenre) { this.idGenre = idGenre; }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+        public String getSexe() { return sexe; }
+        public void setSexe(String sexe) { this.sexe = sexe; }
+
+        public LocalDateTime getCreatedAt() { return createdAt; }
+        public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+        public LocalDateTime getUpdatedAt() { return updatedAt; }
+        public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
     public String getSexe() { return sexe; }
     public void setSexe(String sexe) { this.sexe = sexe; }
 
+            // Méthode utilitaire pour obtenir le nom complet
+            public String getNomComplet() {
+                String nomComplet = "";
+                if (prenom != null && !prenom.isEmpty()) {
+                    nomComplet += prenom;
+                }
+                if (nom != null && !nom.isEmpty()) {
+                    if (!nomComplet.isEmpty()) nomComplet += " ";
+                    nomComplet += nom;
+                }
+                return nomComplet.isEmpty() ? email : nomComplet;
+            }
     // --- NEW GETTERS AND SETTERS FOR BADGE MÉTIER AVANCÉ ---
     public double getTotalPlastic() { return totalPlastic; }
     public void setTotalPlastic(double totalPlastic) { this.totalPlastic = totalPlastic; }
@@ -137,6 +162,7 @@ public class User {
                 "id=" + id +
                 ", nom='" + nom + '\'' +
                 ", prenom='" + prenom + '\'' +
+                ", email='" + email + '\'' +
                 ", role='" + role + '\'' +
                 ", totalPlastic=" + totalPlastic +
                 '}';

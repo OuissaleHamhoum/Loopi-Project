@@ -2,7 +2,6 @@ package edu.Loopi.view;
 
 import edu.Loopi.entities.Produit;
 import edu.Loopi.services.ProduitService;
-import edu.Loopi.services.OpenAIService;
 import edu.Loopi.tools.SessionManager;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -16,14 +15,12 @@ import javafx.scene.effect.DropShadow;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
-import javafx.concurrent.Task;
 import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class GalerieView {
     private ProduitService ps = new ProduitService();
-    private OpenAIService openAIService = new OpenAIService();
     private FlowPane flowPane = new FlowPane(25, 25);
     private String selectedImagePath = "";
 
@@ -35,13 +32,12 @@ public class GalerieView {
     private static final String DARK_COLOR = "#2c3e50";
     private static final String LIGHT_GRAY = "#f8f9fa";
     private static final String BORDER_COLOR = "#e9ecef";
-    private static final String AI_COLOR = "#8b5cf6";
 
     // Composants pour les filtres
     private TextField searchField = new TextField();
     private ComboBox<String> categoryFilter = new ComboBox<>();
     private ComboBox<String> sortCombo = new ComboBox<>();
-    private HBox statsBar = new HBox(15);
+    private HBox statsBar = new HBox(15); // Réduit l'espacement
     private VBox statisticsPanel;
 
     private final Map<String, Integer> categories = new LinkedHashMap<>() {{
@@ -52,7 +48,7 @@ public class GalerieView {
     }};
 
     public VBox getView() {
-        VBox container = new VBox(10);
+        VBox container = new VBox(10); // Réduit l'espacement vertical
         container.setPadding(new Insets(0));
         container.setStyle("-fx-background-color: " + LIGHT_GRAY + ";");
 
@@ -65,8 +61,8 @@ public class GalerieView {
         // Barre de filtres compacte
         HBox filterBar = createCompactFilterBar();
 
-        // Grille de produits
-        flowPane.setPadding(new Insets(20, 30, 30, 30));
+        // Grille de produits - PLUS GRANDE
+        flowPane.setPadding(new Insets(20, 30, 30, 30)); // Réduit padding top
         flowPane.setAlignment(Pos.TOP_CENTER);
         flowPane.setHgap(25);
         flowPane.setVgap(25);
@@ -80,7 +76,7 @@ public class GalerieView {
         scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
 
         container.getChildren().addAll(header, statisticsPanel, filterBar, scroll);
-        VBox.setVgrow(scroll, Priority.ALWAYS);
+        VBox.setVgrow(scroll, Priority.ALWAYS); // Le scroll prend tout l'espace restant
 
         return container;
     }
@@ -89,15 +85,15 @@ public class GalerieView {
      * Crée un en-tête compact
      */
     private VBox createCompactHeader() {
-        VBox header = new VBox(8);
-        header.setPadding(new Insets(15, 40, 10, 40));
+        VBox header = new VBox(8); // Réduit l'espacement
+        header.setPadding(new Insets(15, 40, 10, 40)); // Réduit le padding
         header.setStyle("-fx-background: linear-gradient(to right, #4361ee, #3a0ca3);");
 
         HBox topRow = new HBox();
         topRow.setAlignment(Pos.CENTER_LEFT);
 
         Label title = new Label("📦 Ma Galerie");
-        title.setFont(Font.font("System", FontWeight.BOLD, 28));
+        title.setFont(Font.font("System", FontWeight.BOLD, 28)); // Réduit taille police
         title.setTextFill(Color.WHITE);
 
         Region spacer = new Region();
@@ -105,7 +101,7 @@ public class GalerieView {
 
         Button addBtn = new Button("➕ Nouveau");
         addBtn.setStyle("-fx-background-color: white; -fx-text-fill: " + PRIMARY_COLOR + "; " +
-                "-fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 8 20; " +
+                "-fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 8 20; " + // Réduit padding
                 "-fx-background-radius: 25; -fx-cursor: hand; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 8, 0, 0, 2);");
 
         addBtn.setOnMouseEntered(e -> addBtn.setStyle(addBtn.getStyle() + "-fx-scale-x: 1.03; -fx-scale-y: 1.03;"));
@@ -114,8 +110,8 @@ public class GalerieView {
 
         topRow.getChildren().addAll(title, spacer, addBtn);
 
-        Label subtitle = new Label("Gérez vos créations artistiques avec l'assistance IA");
-        subtitle.setFont(Font.font("System", 14));
+        Label subtitle = new Label("Gérez vos créations artistiques");
+        subtitle.setFont(Font.font("System", 14)); // Plus petit
         subtitle.setTextFill(Color.rgb(255, 255, 255, 0.9));
 
         header.getChildren().addAll(topRow, subtitle);
@@ -126,17 +122,17 @@ public class GalerieView {
      * Crée un panneau de statistiques compact
      */
     private VBox createCompactStatisticsPanel() {
-        VBox panel = new VBox(8);
-        panel.setPadding(new Insets(10, 40, 5, 40));
+        VBox panel = new VBox(8); // Réduit l'espacement
+        panel.setPadding(new Insets(10, 40, 5, 40)); // Réduit le padding
         panel.setStyle("-fx-background-color: white; -fx-border-color: " + BORDER_COLOR + "; -fx-border-width: 0 0 1 0;");
 
         Label statsTitle = new Label("📊 Aperçu");
-        statsTitle.setFont(Font.font("System", FontWeight.BOLD, 16));
+        statsTitle.setFont(Font.font("System", FontWeight.BOLD, 16)); // Plus petit
         statsTitle.setTextFill(Color.web(DARK_COLOR));
 
         statsBar.setAlignment(Pos.CENTER_LEFT);
         statsBar.setPadding(new Insets(0, 0, 5, 0));
-        statsBar.setSpacing(10);
+        statsBar.setSpacing(10); // Réduit l'espacement
 
         panel.getChildren().addAll(statsTitle, statsBar);
         return panel;
@@ -146,9 +142,9 @@ public class GalerieView {
      * Crée une barre de filtres compacte
      */
     private HBox createCompactFilterBar() {
-        HBox filterBar = new HBox(15);
+        HBox filterBar = new HBox(15); // Réduit l'espacement
         filterBar.setAlignment(Pos.CENTER_LEFT);
-        filterBar.setPadding(new Insets(10, 40, 10, 40));
+        filterBar.setPadding(new Insets(10, 40, 10, 40)); // Réduit le padding
         filterBar.setStyle("-fx-background-color: white;");
 
         // Bouton d'actualisation
@@ -162,7 +158,7 @@ public class GalerieView {
         HBox searchBox = new HBox(8);
         searchBox.setAlignment(Pos.CENTER_LEFT);
         searchBox.setStyle("-fx-background-color: " + LIGHT_GRAY + "; -fx-background-radius: 20; -fx-padding: 5 12;");
-        searchBox.setPrefWidth(250);
+        searchBox.setPrefWidth(250); // Plus petit
 
         Label searchIcon = new Label("🔍");
         searchIcon.setStyle("-fx-font-size: 14px;");
@@ -230,7 +226,7 @@ public class GalerieView {
     private void updateStats(List<Produit> list) {
         statsBar.getChildren().clear();
 
-        // Carte Total
+        // Carte Total avec design compact
         statsBar.getChildren().add(createCompactStatCard(
                 "📦 Total",
                 String.valueOf(list.size()),
@@ -238,7 +234,7 @@ public class GalerieView {
                 "Tous vos produits"
         ));
 
-        // Stats par catégorie
+        // Stats par catégorie avec design compact
         for (Map.Entry<String, Integer> entry : categories.entrySet()) {
             long count = list.stream().filter(p -> p.getIdCategorie() == entry.getValue()).count();
             if (count > 0) {
@@ -266,22 +262,23 @@ public class GalerieView {
     private VBox createCompactStatCard(String label, String value, String color, String tooltip) {
         VBox card = new VBox(3);
         card.setAlignment(Pos.CENTER_LEFT);
-        card.setPadding(new Insets(8, 15, 8, 15));
+        card.setPadding(new Insets(8, 15, 8, 15)); // Réduit le padding
         card.setStyle("-fx-background-color: white; -fx-background-radius: 12; " +
-                "-fx-border-color: " + color + "; -fx-border-width: 0 0 0 3; " +
+                "-fx-border-color: " + color + "; -fx-border-width: 0 0 0 3; " + // Bordure plus fine
                 "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.03), 5, 0, 0, 1);");
-        card.setPrefWidth(150);
+        card.setPrefWidth(150); // Plus petit
 
         Tooltip.install(card, new Tooltip(tooltip));
 
         Label valLbl = new Label(value);
-        valLbl.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: " + color + ";");
+        valLbl.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: " + color + ";"); // Plus petit
 
         Label titleLbl = new Label(label);
-        titleLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #6c757d; -fx-font-weight: 600;");
+        titleLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #6c757d; -fx-font-weight: 600;"); // Plus petit
 
         card.getChildren().addAll(valLbl, titleLbl);
 
+        // Hover effect simplifié
         card.setOnMouseEntered(e ->
                 card.setStyle(card.getStyle() + "-fx-scale-x: 1.01; -fx-scale-y: 1.01; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.08), 8, 0, 0, 2);"));
         card.setOnMouseExited(e ->
@@ -452,7 +449,7 @@ public class GalerieView {
         description.setMinHeight(35);
         description.setMaxHeight(50);
 
-        // Boutons d'action
+        // === BOUTONS CORRIGÉS ===
         HBox actions = new HBox(10);
         actions.setAlignment(Pos.CENTER);
         actions.setPadding(new Insets(8, 0, 0, 0));
@@ -465,6 +462,7 @@ public class GalerieView {
         editBtn.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(editBtn, Priority.ALWAYS);
 
+        // Effet de survol pour le bouton Modifier
         editBtn.setOnMouseEntered(e -> {
             editBtn.setStyle("-fx-background-color: #3651c4; -fx-text-fill: white; " +
                     "-fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 8 0; -fx-background-radius: 8; " +
@@ -485,6 +483,7 @@ public class GalerieView {
         deleteBtn.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(deleteBtn, Priority.ALWAYS);
 
+        // Effet de survol pour le bouton Supprimer
         deleteBtn.setOnMouseEntered(e -> {
             deleteBtn.setStyle("-fx-background-color: " + DANGER_COLOR + "; -fx-text-fill: white; " +
                     "-fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 8 0; -fx-background-radius: 8; " +
@@ -497,27 +496,8 @@ public class GalerieView {
         });
         deleteBtn.setOnAction(e -> confirmDelete(p));
 
-        // Bouton IA pour conseils image
-        Button aiAdviceBtn = new Button("🤖 IA");
-        aiAdviceBtn.setStyle("-fx-background-color: " + AI_COLOR + "; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 8 0; -fx-background-radius: 8; " +
-                "-fx-cursor: hand;");
-        aiAdviceBtn.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(aiAdviceBtn, Priority.ALWAYS);
-
-        aiAdviceBtn.setOnMouseEntered(e -> {
-            aiAdviceBtn.setStyle("-fx-background-color: #7c3aed; -fx-text-fill: white; " +
-                    "-fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 8 0; -fx-background-radius: 8; " +
-                    "-fx-cursor: hand; -fx-effect: dropshadow(gaussian, rgba(139,92,246,0.4), 10, 0, 0, 2);");
-        });
-        aiAdviceBtn.setOnMouseExited(e -> {
-            aiAdviceBtn.setStyle("-fx-background-color: " + AI_COLOR + "; -fx-text-fill: white; " +
-                    "-fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 8 0; -fx-background-radius: 8; " +
-                    "-fx-cursor: hand;");
-        });
-        aiAdviceBtn.setOnAction(e -> showImageAdvice(p));
-
-        actions.getChildren().addAll(editBtn, aiAdviceBtn, deleteBtn);
+        actions.getChildren().addAll(editBtn, deleteBtn);
+        // === FIN BOUTONS CORRIGÉS ===
 
         contentBox.getChildren().addAll(name, description, actions);
         card.getChildren().addAll(imageContainer, contentBox);
@@ -538,88 +518,6 @@ public class GalerieView {
         });
 
         return card;
-    }
-
-    /**
-     * Affiche les conseils IA pour l'image
-     */
-    private void showImageAdvice(Produit p) {
-        String category = getCategoryName(p.getIdCategorie());
-
-        // Créer un dialog de chargement
-        Dialog<Void> loadingDialog = new Dialog<>();
-        loadingDialog.setTitle("🤖 Assistance IA");
-        loadingDialog.setHeaderText("L'IA analyse votre produit...");
-
-        VBox content = new VBox(20);
-        content.setAlignment(Pos.CENTER);
-        content.setPadding(new Insets(20));
-        content.setPrefWidth(400);
-
-        ProgressIndicator progress = new ProgressIndicator();
-        progress.setPrefSize(50, 50);
-        Label loadingLabel = new Label("Génération des conseils en cours...");
-        loadingLabel.setStyle("-fx-font-size: 14px;");
-
-        content.getChildren().addAll(progress, loadingLabel);
-        loadingDialog.getDialogPane().setContent(content);
-        loadingDialog.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);
-
-        // Exécuter la requête en arrière-plan
-        Task<String> adviceTask = new Task<String>() {
-            @Override
-            protected String call() throws Exception {
-                return openAIService.getImageAdvice(p.getNom(), category, p.getDescription());
-            }
-        };
-
-        adviceTask.setOnSucceeded(e -> {
-            loadingDialog.close();
-            String advice = adviceTask.getValue();
-            if (advice != null && !advice.isEmpty()) {
-                showAdviceDialog("💡 Conseils IA pour l'image", advice);
-            } else {
-                showAlert("Information", "Impossible d'obtenir les conseils pour le moment.");
-            }
-        });
-
-        adviceTask.setOnFailed(e -> {
-            loadingDialog.close();
-            showAlert("Erreur", "Échec de la génération des conseils: " +
-                    adviceTask.getException().getMessage());
-        });
-
-        new Thread(adviceTask).start();
-        loadingDialog.showAndWait();
-    }
-
-    private void showAdviceDialog(String title, String advice) {
-        Dialog<Void> dialog = new Dialog<>();
-        dialog.setTitle(title);
-        dialog.setHeaderText(null);
-
-        VBox content = new VBox(15);
-        content.setPadding(new Insets(20));
-        content.setPrefWidth(500);
-
-        // Icône
-        HBox iconBox = new HBox();
-        iconBox.setAlignment(Pos.CENTER);
-        Label iconLabel = new Label("🤖");
-        iconLabel.setStyle("-fx-font-size: 48px;");
-        iconBox.getChildren().add(iconLabel);
-
-        // Conseils
-        Label adviceLabel = new Label(advice);
-        adviceLabel.setWrapText(true);
-        adviceLabel.setStyle("-fx-font-size: 14px; -fx-line-spacing: 5; -fx-padding: 10; " +
-                "-fx-background-color: #f3f4f6; -fx-background-radius: 8;");
-
-        content.getChildren().addAll(iconBox, adviceLabel);
-
-        dialog.getDialogPane().setContent(content);
-        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-        dialog.showAndWait();
     }
 
     private void confirmDelete(Produit p) {
@@ -655,6 +553,7 @@ public class GalerieView {
     }
 
     private void showProductForm(Produit existingProduct) {
+        // [Votre code existant pour le formulaire - inchangé]
         Dialog<Produit> dialog = new Dialog<>();
         dialog.setTitle(existingProduct == null ? "Nouveau Trésor" : "Modifier le Produit");
         dialog.getDialogPane().setStyle("-fx-background-color: #f1f8e9; -fx-border-color: #27ae60; -fx-border-width: 2;");
@@ -664,7 +563,7 @@ public class GalerieView {
 
         VBox mainForm = new VBox(15);
         mainForm.setPadding(new Insets(20));
-        mainForm.setPrefWidth(450);
+        mainForm.setPrefWidth(400);
 
         // --- 1. APERÇU ---
         VBox groupPreview = new VBox(5);
@@ -710,27 +609,12 @@ public class GalerieView {
         descF.setStyle("-fx-background-radius: 10;");
         groupDesc.getChildren().addAll(lblDesc, descF);
 
-        // --- 5. MÉDIA avec boutons IA ---
+        // --- 5. MÉDIA ---
         VBox groupMedia = new VBox(5);
-
-        HBox mediaButtons = new HBox(10);
-        mediaButtons.setAlignment(Pos.CENTER_LEFT);
-
-        Button fileBtn = new Button("📁 Choisir une image");
-        fileBtn.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 10; -fx-padding: 8 15;");
+        Button fileBtn = new Button("♻️ Remplacer l'image");
         fileBtn.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(fileBtn, Priority.ALWAYS);
-
-        Button aiHelpBtn = new Button("🤖 Aide IA");
-        aiHelpBtn.setStyle("-fx-background-color: " + AI_COLOR + "; -fx-text-fill: white; " +
-                "-fx-font-weight: bold; -fx-background-radius: 10; -fx-padding: 8 15; -fx-cursor: hand;");
-        aiHelpBtn.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(aiHelpBtn, Priority.ALWAYS);
-        aiHelpBtn.setOnAction(e -> showAIAssistance(existingProduct, nomF, descF, catCombo));
-
-        mediaButtons.getChildren().addAll(fileBtn, aiHelpBtn);
-
-        groupMedia.getChildren().addAll(new Label("Média :"), mediaButtons);
+        fileBtn.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 10;");
+        groupMedia.getChildren().addAll(new Label("Média :"), fileBtn);
 
         mainForm.getChildren().addAll(groupPreview, groupNom, groupCat, groupDesc, groupMedia);
 
@@ -817,152 +701,5 @@ public class GalerieView {
             selectedImagePath = "";
             refreshData();
         });
-    }
-
-    /**
-     * Affiche l'assistance IA pour le formulaire
-     */
-    private void showAIAssistance(Produit existingProduct, TextField nomF, TextArea descF, ComboBox<String> catCombo) {
-        if (nomF.getText().trim().isEmpty()) {
-            showAlert("Information", "Veuillez d'abord saisir un nom de produit.");
-            return;
-        }
-
-        String category = catCombo.getValue() != null ? catCombo.getValue() : "Non spécifiée";
-        String keywords = descF.getText().trim().isEmpty() ?
-                "Aucune description" : descF.getText().substring(0, Math.min(50, descF.getText().length()));
-
-        // Dialog de choix
-        Dialog<String> choiceDialog = new Dialog<>();
-        choiceDialog.setTitle("🤖 Assistance IA");
-        choiceDialog.setHeaderText("Que souhaitez-vous faire ?");
-
-        VBox content = new VBox(15);
-        content.setPadding(new Insets(20));
-        content.setPrefWidth(400);
-
-        Button imageAdviceBtn = new Button("💡 Conseils pour l'image");
-        imageAdviceBtn.setMaxWidth(Double.MAX_VALUE);
-        imageAdviceBtn.setStyle("-fx-background-color: #6366f1; -fx-text-fill: white; " +
-                "-fx-padding: 12; -fx-background-radius: 8; -fx-cursor: hand; -fx-font-weight: bold;");
-        imageAdviceBtn.setOnAction(e -> {
-            choiceDialog.close();
-            showImageAdviceForForm(nomF.getText(), category, descF.getText());
-        });
-
-        Button descriptionBtn = new Button("✍️ Générer une description");
-        descriptionBtn.setMaxWidth(Double.MAX_VALUE);
-        descriptionBtn.setStyle("-fx-background-color: #10b981; -fx-text-fill: white; " +
-                "-fx-padding: 12; -fx-background-radius: 8; -fx-cursor: hand; -fx-font-weight: bold;");
-        descriptionBtn.setOnAction(e -> {
-            choiceDialog.close();
-            generateDescriptionForForm(nomF.getText(), category, keywords, descF);
-        });
-
-        content.getChildren().addAll(imageAdviceBtn, descriptionBtn);
-
-        choiceDialog.getDialogPane().setContent(content);
-        choiceDialog.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);
-        choiceDialog.showAndWait();
-    }
-
-    private void showImageAdviceForForm(String productName, String category, String description) {
-        Task<String> task = new Task<String>() {
-            @Override
-            protected String call() throws Exception {
-                return openAIService.getImageAdvice(productName, category, description);
-            }
-        };
-
-        task.setOnSucceeded(e -> {
-            String advice = task.getValue();
-            if (advice != null) {
-                showAdviceDialog("💡 Conseils IA pour l'image", advice);
-            }
-        });
-
-        task.setOnFailed(e -> {
-            showAlert("Erreur", "Échec de la génération des conseils");
-        });
-
-        showLoadingDialog("Génération des conseils...", task);
-        new Thread(task).start();
-    }
-
-    private void generateDescriptionForForm(String productName, String category, String keywords, TextArea descF) {
-        Task<String> task = new Task<String>() {
-            @Override
-            protected String call() throws Exception {
-                return openAIService.generateProductDescription(productName, category, keywords);
-            }
-        };
-
-        task.setOnSucceeded(e -> {
-            String description = task.getValue();
-            if (description != null) {
-                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-                confirm.setTitle("Description générée");
-                confirm.setHeaderText("Voici la description suggérée par l'IA :");
-
-                TextArea descArea = new TextArea(description);
-                descArea.setWrapText(true);
-                descArea.setEditable(false);
-                descArea.setPrefRowCount(5);
-                descArea.setPrefWidth(400);
-
-                confirm.getDialogPane().setContent(descArea);
-
-                ButtonType useBtn = new ButtonType("Utiliser cette description");
-                ButtonType cancelBtn = new ButtonType("Annuler", ButtonBar.ButtonData.CANCEL_CLOSE);
-                confirm.getButtonTypes().setAll(useBtn, cancelBtn);
-
-                Optional<ButtonType> result = confirm.showAndWait();
-                if (result.isPresent() && result.get() == useBtn) {
-                    descF.setText(description);
-                }
-            }
-        });
-
-        task.setOnFailed(e -> {
-            showAlert("Erreur", "Échec de la génération de la description");
-        });
-
-        showLoadingDialog("Génération de la description...", task);
-        new Thread(task).start();
-    }
-
-    private void showLoadingDialog(String message, Task<?> task) {
-        Dialog<Void> dialog = new Dialog<>();
-        dialog.setTitle("🤖 Traitement IA");
-        dialog.setHeaderText(null);
-
-        VBox content = new VBox(15);
-        content.setAlignment(Pos.CENTER);
-        content.setPadding(new Insets(20));
-        content.setPrefWidth(300);
-
-        ProgressIndicator progress = new ProgressIndicator();
-        progress.setPrefSize(40, 40);
-        Label msgLabel = new Label(message);
-        msgLabel.setStyle("-fx-font-size: 14px;");
-
-        content.getChildren().addAll(progress, msgLabel);
-        dialog.getDialogPane().setContent(content);
-        dialog.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);
-
-        task.setOnSucceeded(e -> dialog.close());
-        task.setOnFailed(e -> dialog.close());
-
-        dialog.show();
-    }
-
-    private String getCategoryName(int idCat) {
-        switch(idCat) {
-            case 1: return "Objets décoratifs";
-            case 2: return "Art mural";
-            case 3: return "Mobilier artistique";
-            case 4: return "Installations artistiques";
-            default: return "Autre";
-        }
     }
 }

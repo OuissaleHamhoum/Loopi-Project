@@ -1,4 +1,4 @@
-# Esprit-PIDEV-3A18-2025-2026-Loopi
+# Esprit-PIDEV-3A18-2026-Loopi
 
 <div align="center">
   <img src="src/main/resources/images/logo/logo.png" alt="Loopi Logo" width="200"/>
